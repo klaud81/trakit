@@ -27,7 +27,7 @@ def _load_from_google_sheets() -> pd.DataFrame:
         "trade_amount", "pool_start", "pool_end", "fee_rate", "purchase"
     ]
 
-    # week_label에서 week_num 추출 ("142 주차" → "142")
+    # week_label에서 week_num 추출 ("142 주차" → "142", "205주차" → "205")
     df["week_num"] = df["week_label"].astype(str).str.extract(r'(\d+)')[0]
 
     return df
