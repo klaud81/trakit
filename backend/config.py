@@ -1,0 +1,48 @@
+"""Trakit 설정"""
+import os
+from pathlib import Path
+
+# 프로젝트 루트 (backend/ 의 부모 = trakit/)
+PROJECT_ROOT = Path(__file__).parent.parent
+DATA_DIR = Path(os.getenv("TRAKIT_DATA_DIR", str(PROJECT_ROOT / "data")))
+
+# backend/ 디렉토리
+BACKEND_DIR = Path(__file__).parent
+
+# 데이터 파일 경로 (로컬 fallback)
+BASE_SHEET_CSV = DATA_DIR / "base_sheet.csv"
+TRADE_SHEET_CSV = DATA_DIR / "trade_sheet.csv"
+EXCHANGE_RATE_TSV = DATA_DIR / "exchange_rate_sheet.tsv"
+
+# Google Sheets 설정
+GOOGLE_SHEET_ID = "1dI12c4AikkHMiT9dXRUhTCPxJwPA08IzBqAsl8zwUsM"
+GOOGLE_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid=0"
+USE_GOOGLE_SHEETS = True  # True면 Google Sheets에서 데이터 로딩
+
+# 투자 설정
+SYMBOL = "TQQQ"
+CONTRIBUTION_PER_CYCLE = 200  # 2주마다 $200 적립
+REBALANCE_INTERVAL_WEEKS = 2
+GOAL_WEEK = 560  # 목표 주차
+GOAL_KRW = 1_000_000_000  # 10억원
+DEFAULT_EXCHANGE_RATE = 1400  # 기본 환율
+
+# 성장 구간 설정
+GROWTH_STAGES = {
+    12: {"two_sqrt_g": 3.46410162, "label": "초기"},
+    13: {"two_sqrt_g": 3.60555128, "label": "중간"},
+    11: {"two_sqrt_g": 3.60555128, "label": "후반"},
+}
+
+# 매매 설정
+TRADE_UNIT = 10  # 기준수량
+TRADE_STEP = 10  # 단수
+EXTRA_QUANTITY = 100  # 추가수량
+
+# 수수료
+DEFAULT_FEE_RATE = 0.003  # 0.3%
+
+# API 설정
+API_HOST = os.getenv("TRAKIT_HOST", "0.0.0.0")
+API_PORT = int(os.getenv("TRAKIT_PORT", "8000"))
+CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173", "http://localhost:8080", "http://127.0.0.1:8080", "*"]

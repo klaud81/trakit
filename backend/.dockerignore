@@ -1,0 +1,6 @@
+__pycache__
+.pytest_cache
+*.pyc
+.omc
+test/
+=0.2.40

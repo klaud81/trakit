@@ -1,0 +1,50 @@
+#!/bin/bash
+# TRAKIT - 백엔드 + 프론트엔드 동시 실행 스크립트
+#
+# 사용법: bash start.sh
+# 종료: Ctrl+C
+
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+echo "🚀 TRAKIT 시작..."
+echo ""
+
+# 1. Backend 의존성 확인 & 설치
+echo "📦 Backend 의존성 설치..."
+cd "$SCRIPT_DIR/backend"
+pip install -r requirements.txt -q 2>/dev/null || pip install -r requirements.txt --break-system-packages -q 2>/dev/null || echo "⚠️  pip install 실패 - 수동으로 설치하세요"
+
+# 2. Frontend 의존성 확인 & 설치
+echo "📦 Frontend 의존성 설치..."
+cd "$SCRIPT_DIR/frontend"
+if [ ! -d "node_modules" ]; then
+  npm install 2>/dev/null || echo "⚠️  npm install 실패 - 수동으로 설치하세요"
+fi
+
+# 3. Backend 실행 (백그라운드)
+echo ""
+echo "🔧 Backend 서버 시작 (port 8000)..."
+cd "$SCRIPT_DIR/backend"
+uvicorn app:app --reload --port 8000 &
+BACKEND_PID=$!
+echo "   PID: $BACKEND_PID"
+
+# 4. Frontend 실행
+echo "🎨 Frontend 서버 시작 (port 5173)..."
+cd "$SCRIPT_DIR/frontend"
+npm run dev &
+FRONTEND_PID=$!
+echo "   PID: $FRONTEND_PID"
+
+echo ""
+echo "✅ TRAKIT 실행 중!"
+echo "   📊 대시보드: http://localhost:5173"
+echo "   🔌 API 문서: http://localhost:8000/docs"
+echo ""
+echo "   종료하려면 Ctrl+C 를 누르세요."
+echo ""
+
+# Ctrl+C 시 둘 다 종료
+trap "echo '종료 중...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" SIGINT SIGTERM
+wait

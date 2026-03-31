@@ -1,0 +1,9 @@
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.vite/
+dist/
+.env
+.omc/
+=0.2.40
