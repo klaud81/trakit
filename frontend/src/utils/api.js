@@ -1,10 +1,10 @@
 /**
  * API 클라이언트
  *
- * 개발 환경: 백엔드 http://localhost:8000/api 에 직접 연결
- * Vite proxy 대신 직접 호출하여 CORS로 통신
+ * 개발 환경: Vite proxy를 통해 /api로 호출
+ * 배포 환경: nginx proxy를 통해 /api로 호출
  */
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export async function fetchApi(path) {
   try {
