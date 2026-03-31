@@ -64,6 +64,15 @@ cd backend && python -m pytest test/ -v
 
 상세: [docs/api-spec.md](docs/api-spec.md)
 
+## 배포
+
+- **로컬 개발**: `./start.sh` (Vite proxy: `/api` → `localhost:8000`)
+- **Docker**: `docker compose up --build -d` (nginx proxy: `/api/` → `backend:8000`)
+- **AWS**: `git pull && docker-compose build --no-cache && docker-compose up -d`
+- API 호출은 항상 `/api` 상대경로 사용 (`frontend/src/utils/api.js`)
+- 변경 미반영 시 `--no-cache` 옵션으로 재빌드
+- 상세: [agents/cicd.md](agents/cicd.md)
+
 ## 테스트
 
 ```bash

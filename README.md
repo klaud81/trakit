@@ -14,6 +14,7 @@ trakit/
 ├── agents/           # 에이전트별 상세 문서
 │   ├── backend.md    # 백엔드 에이전트
 │   ├── frontend.md   # 프론트엔드 에이전트
+│   ├── cicd.md       # CI/CD 에이전트
 │   └── pencil.md     # 디자인 에이전트
 ├── docs/
 │   └── api-spec.md   # API 상세 명세
@@ -59,6 +60,7 @@ cd frontend && npm install && npm run dev
 
 - [Backend Agent](agents/backend.md) - API 서버, 서비스 레이어, 데이터 로딩
 - [Frontend Agent](agents/frontend.md) - React 컴포넌트, 차트, 상태 관리
+- [CI/CD Agent](agents/cicd.md) - Docker 빌드, 배포, 환경별 프록시 설정
 - [Pencil Agent](agents/pencil.md) - UI 디자인 명세 (.pen)
 - [API 명세](docs/api-spec.md) - 11개 엔드포인트 상세 스펙
 
