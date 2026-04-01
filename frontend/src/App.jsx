@@ -259,7 +259,7 @@ export default function App() {
             <span style={{ fontWeight: 700, fontSize: '28px' }}>후원하기</span>
             <span style={{ color: 'var(--text-muted)', fontSize: '28px' }}>우리은행 1005204834806 · (주)스노우볼</span>
           </div>
-          <button className="sponsor-card-copy" onClick={() => {
+          <button className="sponsor-card-copy" onClick={(e) => {
             const text = '1005204834806';
             if (navigator.clipboard) {
               navigator.clipboard.writeText(text);
@@ -271,7 +271,8 @@ export default function App() {
               document.execCommand('copy');
               document.body.removeChild(ta);
             }
-            alert('계좌번호가 복사되었습니다: ' + text);
+            e.target.textContent = '복사됨!';
+            setTimeout(() => { e.target.textContent = '복사'; }, 2000);
           }}>
             복사
           </button>
