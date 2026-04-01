@@ -253,6 +253,29 @@ export default function App() {
           <TradeTable title="매도 포인트 (SELL)" table={tradePoints?.sell_table} type="sell" unitSize={tradePoints?.unit_size} />
         </div>
         <ProgressCard portfolio={portfolio} remaining={remaining} />
+        <div className="sponsor-card">
+          <span style={{ fontSize: '28px' }}>☕</span>
+          <div className="sponsor-card-text">
+            <span style={{ fontWeight: 700, fontSize: '28px' }}>후원하기</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '28px' }}>우리은행 1005204834806 · (주)스노우볼</span>
+          </div>
+          <button className="sponsor-card-copy" onClick={() => {
+            const text = '1005204834806';
+            if (navigator.clipboard) {
+              navigator.clipboard.writeText(text);
+            } else {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+            }
+            alert('계좌번호가 복사되었습니다: ' + text);
+          }}>
+            복사
+          </button>
+        </div>
       </div>
     </div>
   );
