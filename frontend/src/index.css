@@ -60,7 +60,7 @@ body {
 .sponsor-btn:hover { border-color: var(--primary); background: rgba(255,132,0,0.15); }
 .sponsor-card { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; }
 .sponsor-card-text { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-.sponsor-card-copy { background: var(--muted-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 24px; font-size: 28px; font-weight: 600; color: var(--text-muted); cursor: pointer; }
+.sponsor-card-copy { background: var(--muted-bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 20px; font-size: 22px; font-weight: 600; color: var(--text-muted); cursor: pointer; }
 .sponsor-card-copy:hover { border-color: var(--primary); color: var(--primary); }
 
 /* ===== Layout ===== */

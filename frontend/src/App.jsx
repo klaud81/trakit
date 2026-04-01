@@ -254,10 +254,10 @@ export default function App() {
         </div>
         <ProgressCard portfolio={portfolio} remaining={remaining} />
         <div className="sponsor-card">
-          <span style={{ fontSize: '28px' }}>☕</span>
+          <span style={{ fontSize: '22px' }}>☕</span>
           <div className="sponsor-card-text">
-            <span style={{ fontWeight: 700, fontSize: '28px' }}>후원하기</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: '28px' }}>우리은행 1005204834806 · (주)스노우볼</span>
+            <span style={{ fontWeight: 700, fontSize: '22px' }}>후원하기</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: '22px' }}>우리은행 1005204834806 · (주)스노우볼</span>
           </div>
           <button className="sponsor-card-copy" onClick={(e) => {
             const text = '1005204834806';
