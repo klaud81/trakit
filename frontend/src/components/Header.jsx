@@ -12,8 +12,7 @@ export default function Header({ portfolio, weekIdx, totalWeeks, onPrevWeek, onN
           <button className="week-nav-btn" onClick={onPrevWeek} disabled={!canPrev} title="이전 주차">
             ◀
           </button>
-          <span>{weekNum}주차</span>
-          {dateRange && <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({dateRange})</span>}
+          <span className="week-label">{weekNum}주차{dateRange ? ` · ${dateRange}` : ''}</span>
           <button className="week-nav-btn" onClick={onNextWeek} disabled={!canNext} title="다음 주차">
             ▶
           </button>

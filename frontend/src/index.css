@@ -32,10 +32,11 @@ body {
 .header-left { display: flex; align-items: center; gap: 16px; }
 .logo { font-size: 20px; font-weight: 700; color: var(--primary); letter-spacing: 2px; }
 .badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-.badge-week { background: var(--muted-bg); color: var(--text); display: flex; align-items: center; gap: 8px; }
+.badge-week { background: var(--muted-bg); color: var(--text); display: flex; align-items: center; gap: 6px; padding: 4px 8px; }
 .badge-goal { background: rgba(255,132,0,0.15); color: var(--primary); }
+.week-label { display: inline-block; width: 160px; text-align: center; font-weight: 500; font-size: 12px; }
 .week-nav-btn {
-  background: none; border: 1px solid var(--border); color: var(--text-muted);
+  background: var(--card-bg); border: 1px solid var(--border); color: var(--text-muted);
   width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   font-size: 14px; transition: all 0.2s;
