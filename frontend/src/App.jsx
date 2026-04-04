@@ -197,8 +197,9 @@ export default function App() {
     }
   };
 
-  /** 실시간 가격 자동 갱신 (30초) */
+  /** 실시간 가격 자동 갱신 (30초, 장 마감 시 중단) */
   useEffect(() => {
+    if (price && price.market_open === false) return;
     const refreshPrice = async () => {
       setPriceRefreshing(true);
       const p = await fetchApi('/price');
@@ -207,7 +208,7 @@ export default function App() {
     };
     const interval = setInterval(refreshPrice, 30_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [price?.market_open]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
