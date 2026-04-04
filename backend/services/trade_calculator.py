@@ -7,12 +7,12 @@ from config import TRADE_UNIT
 
 
 def _calc_unit_size(shares: int, min_band: float, pool: float) -> int:
-    """기준 단수 = ROUND(pool / 13 / (min_band / shares) / 2)"""
+    """기준 단수 = ROUND(pool / 13 / (min_band / shares) / 2) * 2"""
     if shares <= 0 or min_band <= 0:
         return TRADE_UNIT
     buy_price = min_band / shares  # C5 = 매수점(최소값/잔여갯수)
-    unit = pool / 13 / buy_price / 2  # D4/13/C5/2
-    return max(1, round(unit))
+    unit = round(pool / 13 / buy_price / 2) * 2  # D4/13/C5/2 * 2
+    return max(1, unit)
 
 
 def _build_table(shares, min_band, max_band, pool, unit):

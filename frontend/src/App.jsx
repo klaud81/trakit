@@ -10,11 +10,11 @@ import ProgressCard from './components/ProgressCard';
 import EquityChart from './components/EquityChart';
 import ValueLineChart from './components/ValueLineChart';
 
-/** 기준 단수 = ROUND(pool / 13 / (min_band / shares) / 2) */
+/** 기준 단수 = ROUND(pool / 13 / (min_band / shares) / 2) * 2 */
 function calcUnitSize(shares, minBand, pool) {
   if (shares <= 0 || minBand <= 0) return 10;
   const buyPrice = minBand / shares;
-  return Math.max(1, Math.round(pool / 13 / buyPrice / 2));
+  return Math.max(1, Math.round(pool / 13 / buyPrice / 2) * 2);
 }
 
 /** 매수 포인트 계산 — pool이 초기값의 1/2 이하가 되면 중단 */
