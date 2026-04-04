@@ -236,7 +236,7 @@ export default function App() {
           </div>
         )}
         <div className="grid-2">
-          <PortfolioCard portfolio={portfolio} signal={signal} />
+          <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} />
           <BandCard portfolio={portfolio} />
         </div>
         <SignalPanel signal={signal} price={portfolio?.price} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} />

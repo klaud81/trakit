@@ -1,0 +1,1275 @@
+{
+  "version": "2.10",
+  "children": [
+    {
+      "type": "frame",
+      "id": "UxzXf",
+      "x": 1600,
+      "y": -47,
+      "name": "Component/NavButton",
+      "reusable": true,
+      "width": 28,
+      "height": 28,
+      "fill": "$--card",
+      "cornerRadius": 6,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "$--border"
+      },
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "6fA5W",
+          "x": 0,
+          "y": 0,
+          "fill": "$--text-muted",
+          "textGrowth": "fixed-width-height",
+          "width": 28,
+          "height": 28,
+          "content": "◀",
+          "textAlign": "center",
+          "textAlignVertical": "middle",
+          "fontFamily": "Inter",
+          "fontSize": 11,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "uXWWi",
+      "x": 1600,
+      "y": 22,
+      "name": "Component/SponsorButton",
+      "reusable": true,
+      "fill": "#FFF8E1",
+      "cornerRadius": 8,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "$--border"
+      },
+      "gap": 6,
+      "padding": [
+        6,
+        12
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "iuEfm",
+          "content": "☕",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "uYVFK",
+          "fill": "$--primary",
+          "content": "후원하기",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "600"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Qc7P9",
+      "x": 1600,
+      "y": 90,
+      "name": "Component/TableRow",
+      "reusable": true,
+      "width": 400,
+      "stroke": {
+        "align": "inside",
+        "thickness": {
+          "bottom": 1
+        },
+        "fill": "$--border"
+      },
+      "padding": [
+        10,
+        20
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "oHHMG",
+          "fill": "$--text",
+          "textGrowth": "fixed-width",
+          "width": 110,
+          "content": "1,256",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "G8yzv",
+          "fill": "$--buy",
+          "textGrowth": "fixed-width",
+          "width": 110,
+          "content": "39.64",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "aIgqF",
+          "fill": "$--text",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "5,284.07",
+          "textAlign": "right",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Gyewd",
+      "x": 1600,
+      "y": 180,
+      "name": "Component/TableHeader",
+      "reusable": true,
+      "width": 400,
+      "fill": "$--muted-bg",
+      "stroke": {
+        "align": "inside",
+        "thickness": {
+          "bottom": 1
+        },
+        "fill": "$--border"
+      },
+      "padding": [
+        8,
+        20
+      ],
+      "children": [
+        {
+          "type": "text",
+          "id": "ZN7Ho",
+          "fill": "$--text-muted",
+          "textGrowth": "fixed-width",
+          "width": 110,
+          "content": "잔여갯수",
+          "fontFamily": "Inter",
+          "fontSize": 11,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "lAvJb",
+          "fill": "$--text-muted",
+          "textGrowth": "fixed-width",
+          "width": 110,
+          "content": "매수점 ($)",
+          "fontFamily": "Inter",
+          "fontSize": 11,
+          "fontWeight": "500"
+        },
+        {
+          "type": "text",
+          "id": "Njxk7",
+          "fill": "$--text-muted",
+          "textGrowth": "fixed-width",
+          "width": "fill_container",
+          "content": "Pool ($)",
+          "textAlign": "right",
+          "fontFamily": "Inter",
+          "fontSize": 11,
+          "fontWeight": "500"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "JExE9",
+      "x": 1600,
+      "y": 277,
+      "name": "Component/SponsorCard",
+      "reusable": true,
+      "width": 581,
+      "height": 92,
+      "fill": "$--card",
+      "cornerRadius": 12,
+      "stroke": {
+        "align": "inside",
+        "thickness": 1,
+        "fill": "$--border"
+      },
+      "gap": 12,
+      "padding": [
+        16,
+        20
+      ],
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "text",
+          "id": "uGz8z",
+          "content": "☕",
+          "fontFamily": "Inter",
+          "fontSize": 22,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "yB6Hg",
+          "name": "scText",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 2,
+          "children": [
+            {
+              "type": "text",
+              "id": "Me95z",
+              "fill": "$--text",
+              "content": "후원하기",
+              "fontFamily": "Inter",
+              "fontSize": 22,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "G58Fk",
+              "fill": "$--text-muted",
+              "content": "우리은행 1005204834806 · (주)스노우볼",
+              "fontFamily": "Inter",
+              "fontSize": 22,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "wVWZV",
+          "name": "scCopy",
+          "fill": "$--muted-bg",
+          "cornerRadius": 8,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "$--border"
+          },
+          "padding": [
+            10,
+            20
+          ],
+          "children": [
+            {
+              "type": "text",
+              "id": "DHdfU",
+              "fill": "$--text-muted",
+              "content": "복사",
+              "fontFamily": "Inter",
+              "fontSize": 22,
+              "fontWeight": "600"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "31USk",
+      "x": 0,
+      "y": 0,
+      "name": "TQQQ Dashboard",
+      "clip": true,
+      "width": 1440,
+      "fill": "$--bg",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "sm6Hm",
+          "name": "Header",
+          "width": "fill_container",
+          "height": 56,
+          "fill": "$--card",
+          "stroke": {
+            "align": "inside",
+            "thickness": {
+              "bottom": 1
+            },
+            "fill": "$--border"
+          },
+          "padding": [
+            0,
+            32
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "UqwB7",
+              "name": "logoArea",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "0rXv7",
+                  "name": "logoBox",
+                  "width": 28,
+                  "height": 28,
+                  "fill": "$--primary",
+                  "cornerRadius": 6,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "U2n1y",
+                      "x": 0,
+                      "y": 0,
+                      "fill": "#FFFFFF",
+                      "textGrowth": "fixed-width-height",
+                      "width": 28,
+                      "height": 28,
+                      "content": "T",
+                      "textAlign": "center",
+                      "textAlignVertical": "middle",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "rN3jL",
+                  "fill": "$--text",
+                  "content": "TRAKIT",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "UaxaE",
+              "name": "headerR",
+              "gap": 16,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Z7i16",
+                  "name": "weekBadge",
+                  "fill": "$--muted-bg",
+                  "cornerRadius": 999,
+                  "gap": 6,
+                  "padding": [
+                    4,
+                    8
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "id": "TOPpJ",
+                      "type": "ref",
+                      "ref": "UxzXf",
+                      "name": "prevBtn",
+                      "x": 8,
+                      "y": 4
+                    },
+                    {
+                      "type": "text",
+                      "id": "FW4ur",
+                      "fill": "$--text",
+                      "textGrowth": "fixed-width",
+                      "width": 140,
+                      "content": "260주차 · 4/4~4/17",
+                      "textAlign": "center",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "id": "pzu3u",
+                      "type": "ref",
+                      "ref": "UxzXf",
+                      "name": "nextBtn",
+                      "x": 188,
+                      "y": 4,
+                      "descendants": {
+                        "6fA5W": {
+                          "content": "▶"
+                        }
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "8dhl4",
+                  "name": "goalBadge",
+                  "fill": "#FFF3E0",
+                  "cornerRadius": 999,
+                  "padding": [
+                    5,
+                    12
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Ncv6y",
+                      "fill": "$--primary",
+                      "content": "GOAL: 560주차",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "ahIvV",
+                  "type": "ref",
+                  "ref": "uXWWi",
+                  "x": 366,
+                  "y": 3.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "zhSsK",
+          "name": "Body",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 20,
+          "padding": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "gcBRx",
+              "name": "Top Cards",
+              "width": "fill_container",
+              "gap": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "36xxu",
+                  "name": "Portfolio Card",
+                  "width": "fill_container",
+                  "fill": "$--card",
+                  "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$--border"
+                  },
+                  "layout": "vertical",
+                  "gap": 14,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "bGdkG",
+                      "name": "c1top",
+                      "width": "fill_container",
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "eoyrf",
+                          "fill": "$--text-muted",
+                          "content": "포트폴리오",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "SG0cm",
+                          "name": "c1b",
+                          "fill": "#E8F5E9",
+                          "cornerRadius": 999,
+                          "padding": [
+                            3,
+                            10
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "4m8vY",
+                              "fill": "$--hold",
+                              "content": "HOLD",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "II58I",
+                      "fill": "$--text",
+                      "content": "$58,322.18",
+                      "fontFamily": "Inter",
+                      "fontSize": 26,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Iw0ln",
+                      "fill": "$--text-muted",
+                      "content": "1,346주 보유 · 평단 $43.33 (+100주)",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bi1G7",
+                      "name": "cm",
+                      "width": "fill_container",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": {
+                          "top": 1
+                        },
+                        "fill": "$--border"
+                      },
+                      "gap": 12,
+                      "padding": [
+                        12,
+                        0,
+                        0,
+                        0
+                      ],
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "WCKXk",
+                          "name": "m1",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Zm1rI",
+                              "fill": "$--text-muted",
+                              "content": "Pool",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "33UYo",
+                              "fill": "$--text",
+                              "content": "$1,839.47",
+                              "fontFamily": "Inter",
+                              "fontSize": 13,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "05lLl",
+                          "name": "m2",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Fcg9n",
+                              "fill": "$--text-muted",
+                              "content": "총 자산",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "YJSnc",
+                              "fill": "$--text",
+                              "content": "$60,161.65",
+                              "fontFamily": "Inter",
+                              "fontSize": 13,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "7ZlMW",
+                  "name": "Band Card",
+                  "width": "fill_container",
+                  "fill": "$--card",
+                  "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$--border"
+                  },
+                  "layout": "vertical",
+                  "gap": 14,
+                  "padding": 20,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "SKh9X",
+                      "fill": "$--text-muted",
+                      "content": "리밸런싱 밴드",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "iriwl",
+                      "name": "bb",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 10,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "sJLAo",
+                          "name": "mx",
+                          "width": "fill_container",
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "hDoPS",
+                              "fill": "$--sell",
+                              "content": "최대",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Wm2jj",
+                              "fill": "$--sell",
+                              "content": "$76,724",
+                              "fontFamily": "Inter",
+                              "fontSize": 13,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "LbPpB",
+                          "name": "bar",
+                          "width": "fill_container",
+                          "height": 8,
+                          "fill": "$--muted-bg",
+                          "cornerRadius": 4,
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "3Itj0",
+                              "x": 0,
+                              "y": 0,
+                              "width": 43,
+                              "height": 8,
+                              "fill": "$--primary",
+                              "cornerRadius": 4
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "TOyoU",
+                          "name": "cr",
+                          "width": "fill_container",
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "JY9RA",
+                              "fill": "$--primary",
+                              "content": "현재 (12%)",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Rizig",
+                              "fill": "$--primary",
+                              "content": "$58,322",
+                              "fontFamily": "Inter",
+                              "fontSize": 13,
+                              "fontWeight": "700"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "gkZ6I",
+                          "name": "mn",
+                          "width": "fill_container",
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Rt5nV",
+                              "fill": "$--buy",
+                              "content": "최소",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "text",
+                              "id": "m8cC1",
+                              "fill": "$--buy",
+                              "content": "$55,860",
+                              "fontFamily": "Inter",
+                              "fontSize": 13,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QDh8s",
+                      "name": "dr",
+                      "width": "fill_container",
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": {
+                          "top": 1
+                        },
+                        "fill": "$--border"
+                      },
+                      "padding": [
+                        10,
+                        0,
+                        0,
+                        0
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Sffkr",
+                          "fill": "$--text-muted",
+                          "content": "매수 밴드까지",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "aEm2n",
+                          "fill": "$--buy",
+                          "content": "+$2,462",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ReGY2",
+              "name": "Signal Panel",
+              "width": "fill_container",
+              "fill": "$--card",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$--hold"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "2mC7M",
+                  "fill": "$--text",
+                  "content": "Signal",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "Ovq24",
+                  "name": "pb",
+                  "width": "fill_container",
+                  "fill": "$--card",
+                  "cornerRadius": 8,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "$--border"
+                  },
+                  "gap": 10,
+                  "padding": [
+                    10,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "IoTy2",
+                      "fill": "$--text-muted",
+                      "content": "↻",
+                      "fontFamily": "Inter",
+                      "fontSize": 22,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "f3gNN",
+                      "fill": "$--text-muted",
+                      "content": "실시간 TQQQ",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ex935",
+                      "fill": "$--price-up",
+                      "content": "$43.33",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "B5R9E",
+                      "fill": "$--price-up",
+                      "content": "+0.10 (0.23%)",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hdfgA",
+                      "fill": "$--text-muted",
+                      "content": "closed",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "xUAVU",
+                  "fill": "$--text",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "홀드: 밴드 내 12% 위치. 현재 상태 유지하세요.",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "VPo8l",
+                  "name": "sb",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Plzpj",
+                      "name": "s1",
+                      "width": "fill_container",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "hcPqv",
+                          "fill": "$--text-muted",
+                          "content": "매수까지:",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "OjACp",
+                          "fill": "$--buy",
+                          "content": "$41.50/주",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "SlYEi",
+                      "name": "s2",
+                      "width": "fill_container",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "u385W",
+                          "fill": "$--text-muted",
+                          "content": "매도까지:",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "GSGrV",
+                          "fill": "$--sell",
+                          "content": "$57.00/주",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "3Uauw",
+              "name": "Equity Chart",
+              "width": "fill_container",
+              "fill": "$--card",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$--border"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "E52MC",
+                  "fill": "$--text",
+                  "content": "Value Rebalancing Chart (평가금)",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "DV8MS",
+                  "name": "eqa",
+                  "width": "fill_container",
+                  "height": 200,
+                  "fill": "$--muted-bg",
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "0eG56",
+                      "x": 60,
+                      "y": 90,
+                      "fill": "$--text-muted",
+                      "content": "평가금 · 최소밴드 · 최대밴드 차트",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "mPtZ4",
+                  "name": "el",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "s902z",
+                      "name": "e1",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 1,
+                          "id": "IBqt1",
+                          "fill": "#4CAF50",
+                          "width": 12,
+                          "height": 3
+                        },
+                        {
+                          "type": "text",
+                          "id": "r5IvG",
+                          "fill": "$--text-muted",
+                          "content": "평가금(E)",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "OxX4G",
+                      "name": "e2",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 1,
+                          "id": "xIiv0",
+                          "fill": "$--sell",
+                          "width": 12,
+                          "height": 3
+                        },
+                        {
+                          "type": "text",
+                          "id": "LAeBg",
+                          "fill": "$--text-muted",
+                          "content": "최대밴드",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "7fhni",
+                      "name": "e3",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 1,
+                          "id": "TT2Vj",
+                          "fill": "$--buy",
+                          "width": 12,
+                          "height": 3
+                        },
+                        {
+                          "type": "text",
+                          "id": "qusBy",
+                          "fill": "$--text-muted",
+                          "content": "최소밴드",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "5f4FO",
+              "name": "Value Line Chart",
+              "width": "fill_container",
+              "fill": "$--card",
+              "cornerRadius": 12,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "$--border"
+              },
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "xpXcV",
+                  "fill": "$--text",
+                  "content": "Value Movement / 주당 가격 (가치 이동선)",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "CVHix",
+                  "name": "vla",
+                  "width": "fill_container",
+                  "height": 200,
+                  "fill": "$--muted-bg",
+                  "cornerRadius": 8,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ithQN",
+                      "x": 40,
+                      "y": 90,
+                      "fill": "$--text-muted",
+                      "content": "TQQQ 가격 · 평가금/주 · V/주 · 최대/주 · 최소/주",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "8NT9s",
+                  "name": "vleg",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "57Cnk",
+                      "name": "v1",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 1,
+                          "id": "9j4g8",
+                          "fill": "#4CAF50",
+                          "width": 12,
+                          "height": 3
+                        },
+                        {
+                          "type": "text",
+                          "id": "3pDTu",
+                          "fill": "$--text-muted",
+                          "content": "TQQQ 가격",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "eRv7j",
+                      "name": "v2",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 1,
+                          "id": "niTER",
+                          "fill": "#9C27B0",
+                          "width": 12,
+                          "height": 3
+                        },
+                        {
+                          "type": "text",
+                          "id": "3dE44",
+                          "fill": "$--text-muted",
+                          "content": "평가금(E)/주",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "--bg": {
+      "type": "color",
+      "value": "#F8F9FA"
+    },
+    "--border": {
+      "type": "color",
+      "value": "#E2E4E9"
+    },
+    "--buy": {
+      "type": "color",
+      "value": "#1565C0"
+    },
+    "--card": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "--hold": {
+      "type": "color",
+      "value": "#2E7D32"
+    },
+    "--muted-bg": {
+      "type": "color",
+      "value": "#F3F4F6"
+    },
+    "--price-down": {
+      "type": "color",
+      "value": "#1E88E5"
+    },
+    "--price-up": {
+      "type": "color",
+      "value": "#E53935"
+    },
+    "--primary": {
+      "type": "color",
+      "value": "#FF8400"
+    },
+    "--sell": {
+      "type": "color",
+      "value": "#D32F2F"
+    },
+    "--text": {
+      "type": "color",
+      "value": "#111827"
+    },
+    "--text-muted": {
+      "type": "color",
+      "value": "#6B7280"
+    }
+  }
+}

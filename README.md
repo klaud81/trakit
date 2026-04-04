@@ -2,7 +2,7 @@
 
 TQQQ 밸류 리밸런싱 투자 추적 대시보드. Google Sheets 데이터를 기반으로 포트폴리오 상태, 매매 시그널, 매수/매도 포인트를 실시간 추적합니다.
 
-![Dashboard](trakit-dashboard.png)
+![Dashboard](pencil/trakit-dashboard.png)
 
 ## 프로젝트 구조
 
@@ -23,17 +23,33 @@ trakit/
 
 ## 실행 방법
 
+### 로컬 개발
+
 ```bash
-# 백엔드
-cd backend && pip install -r requirements.txt
-uvicorn app:app --reload --port 8000
-
-# 프론트엔드
-cd frontend && npm install && npm run dev
-
-# 또는 동시 실행
 ./start.sh
+# 대시보드: http://localhost:5173
+# API 문서: http://localhost:8000/docs
 ```
+
+### Docker 배포
+
+```bash
+docker compose up --build -d
+# 대시보드: http://localhost
+# API: http://localhost:8000
+```
+
+## API 라우팅
+
+프론트엔드는 항상 `/api` 상대경로로 API를 호출합니다. 환경별 프록시가 백엔드로 라우팅합니다.
+
+| 환경 | 프론트엔드 | 프록시 | 백엔드 | 설정 파일 |
+|------|-----------|--------|--------|-----------|
+| 로컬 개발 (`start.sh`) | `localhost:5173` | Vite proxy | `127.0.0.1:8000` | `vite.config.js` |
+| Docker (`docker compose`) | `localhost:80` | nginx proxy | `backend:8000` | `nginx.conf` |
+| AWS 배포 | NLB URL | nginx proxy | `backend:8000` | `nginx.conf` |
+
+> Docker 배포 시 `vite.config.js`의 proxy 설정은 사용되지 않습니다. `npm run build`로 정적 파일을 생성하고, nginx가 서빙 + API 프록시를 담당합니다.
 
 ## 주요 기능
 
@@ -69,4 +85,5 @@ cd frontend && npm install && npm run dev
 - **Backend**: Python 3.11, FastAPI, pandas, yfinance
 - **Frontend**: React 18, Vite, recharts
 - **Data**: Google Sheets CSV export, Yahoo Finance API
+- **Infra**: Docker Compose, nginx (리버스 프록시), AWS NLB
 - **Design**: Pencil (.pen)

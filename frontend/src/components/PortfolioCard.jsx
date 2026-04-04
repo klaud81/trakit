@@ -1,8 +1,10 @@
 import { fmt, fmtUSD } from '../utils/format';
 
-export default function PortfolioCard({ portfolio, signal }) {
+export default function PortfolioCard({ portfolio, signal, prevWeek }) {
   if (!portfolio) return null;
   const signalType = signal ? signal.signal_type : 'HOLD';
+
+  const sharesDiff = prevWeek ? portfolio.shares - (prevWeek.shares || 0) : null;
 
   return (
     <div className="card">
@@ -13,6 +15,11 @@ export default function PortfolioCard({ portfolio, signal }) {
       <div className="portfolio-value">{fmtUSD(portfolio.valuation)}</div>
       <div className="portfolio-shares">
         {fmt(portfolio.shares, 0)}주 보유 · 평단 {fmtUSD(portfolio.avg_cost)}
+        {sharesDiff !== null && sharesDiff !== 0 && (
+          <span className={sharesDiff > 0 ? 'price-up' : 'price-down'} style={{ marginLeft: '8px', fontSize: '12px' }}>
+            ({sharesDiff > 0 ? '+' : ''}{fmt(sharesDiff, 0)}주)
+          </span>
+        )}
       </div>
       <div className="portfolio-meta">
         <div className="meta-item">

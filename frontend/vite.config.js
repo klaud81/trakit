@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // /api 요청을 백엔드 FastAPI 서버로 포워드
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
       },
