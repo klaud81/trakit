@@ -10,13 +10,6 @@ import ProgressCard from './components/ProgressCard';
 import EquityChart from './components/EquityChart';
 import ValueLineChart from './components/ValueLineChart';
 
-/** 기준 단수 = ROUND(pool / 13 / (min_band / shares) / 2) * 2 */
-function calcUnitSize(shares, minBand, pool) {
-  if (shares <= 0 || minBand <= 0) return 10;
-  const buyPrice = minBand / shares;
-  return Math.max(1, Math.round(pool / 13 / buyPrice / 2) * 2);
-}
-
 /** 매수 포인트 계산 — pool이 초기값의 1/2 이하가 되면 중단 */
 function calcBuyPoints(shares, minBand, pool, unit) {
   const pts = [];
@@ -125,7 +118,7 @@ export default function App() {
       recommendation: '홀드: 밴드 내 18% 위치. 현재 상태 유지하세요.',
     });
     // 데모 매수/매도 포인트 계산 (기준 단수 자동 계산)
-    const demoUnit = calcUnitSize(last.shares, last.min_band, last.pool);
+    const demoUnit = 10;
     const buyRows = calcBuyPoints(last.shares, last.min_band, last.pool, demoUnit);
     const sellRows = calcSellPoints(last.shares, last.max_band, last.pool, demoUnit, buyRows.length);
     setTradePoints({
@@ -192,7 +185,7 @@ export default function App() {
     if (apiResult) {
       setTradePoints(apiResult);
     } else {
-      const unit = calcUnitSize(shares, minB, pool);
+      const unit = 10;
       const buyRows = calcBuyPoints(shares, minB, pool, unit);
       const sellRows = calcSellPoints(shares, maxB, pool, unit, buyRows.length);
       setTradePoints({
