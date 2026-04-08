@@ -8,17 +8,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY
 
+import time
+
+class KSTFormatter(logging.Formatter):
+    converter = time.localtime
+    def formatTime(self, record, datefmt=None):
+        ct = self.converter(record.created)
+        return time.strftime("%Y-%m-%dT%H:%M:%S+09:00", ct)
+
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
-LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
-logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=LOG_DATEFMT)
+_formatter = KSTFormatter(LOG_FORMAT)
+_handler = logging.StreamHandler()
+_handler.setFormatter(_formatter)
+logging.root.setLevel(logging.INFO)
+logging.root.handlers = [_handler]
 
 # uvicorn 로거에도 동일 포맷 적용
 for name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
     uv_logger = logging.getLogger(name)
     uv_logger.handlers.clear()
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT))
-    uv_logger.addHandler(handler)
+    uv_logger.addHandler(_handler)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
