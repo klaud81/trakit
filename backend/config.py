@@ -42,6 +42,12 @@ EXTRA_QUANTITY = 100  # 추가수량
 # 수수료
 DEFAULT_FEE_RATE = 0.003  # 0.3%
 
+# 한국투자증권 API
+KIS_APP_KEY = os.getenv("KIS_APP_KEY", "")
+KIS_APP_SECRET = os.getenv("KIS_APP_SECRET", "")
+KIS_MOCK = os.getenv("KIS_MOCK", "true").lower() == "true"
+KIS_BASE_URL = "https://openapivts.koreainvestment.com:29443" if KIS_MOCK else "https://openapi.koreainvestment.com:9443"
+
 # API 설정
 API_HOST = os.getenv("TRAKIT_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("TRAKIT_PORT", "8000"))

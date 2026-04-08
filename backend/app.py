@@ -2,6 +2,9 @@
 
 실행: cd backend && uvicorn app:app --reload --port 8000
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router

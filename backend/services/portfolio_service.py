@@ -122,7 +122,9 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
     total_value = valuation + pool
 
     # 목표 대비 진행률
-    goal_usd = GOAL_KRW / DEFAULT_EXCHANGE_RATE
+    from services.exchange_rate_service import get_exchange_rate
+    exchange = get_exchange_rate()
+    goal_usd = GOAL_KRW / exchange["rate"]
     goal_progress = (total_value / goal_usd) * 100
 
     return {

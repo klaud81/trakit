@@ -1,13 +1,12 @@
 """실시간 가격 조회 서비스
 
-yfinance SDK를 기본 소스로 사용하여 정확한 가격 변동 정보 제공.
-Yahoo Finance v8 API는 fallback으로 사용.
+KIS(한국투자증권) API를 기본 소스로, yfinance/Yahoo API를 fallback으로 사용.
 """
 import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from config import SYMBOL
+from config import SYMBOL, KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +17,73 @@ CACHE_TTL_SECONDS = 30  # 30초 캐시
 
 
 KST = timezone(timedelta(hours=9))
+
+# KIS API 토큰 캐시
+_kis_token: Optional[str] = None
+_kis_token_expires: Optional[datetime] = None
+
+
+def _get_kis_token() -> Optional[str]:
+    """KIS API 접근토큰 발급 (24시간 유효)"""
+    global _kis_token, _kis_token_expires
+    if _kis_token and _kis_token_expires and datetime.now() < _kis_token_expires:
+        return _kis_token
+    if not KIS_APP_KEY or not KIS_APP_SECRET:
+        return None
+    try:
+        resp = requests.post(
+            f"{KIS_BASE_URL}/oauth2/tokenP",
+            json={"grant_type": "client_credentials", "appkey": KIS_APP_KEY, "appsecret": KIS_APP_SECRET},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        _kis_token = data["access_token"]
+        _kis_token_expires = datetime.now() + timedelta(hours=23)
+        logger.info("KIS API 토큰 발급 성공")
+        return _kis_token
+    except Exception as e:
+        logger.warning(f"KIS token failed: {e}")
+        return None
+
+
+def _fetch_kis(symbol: str) -> Optional[dict]:
+    """한국투자증권 API로 해외주식 현재가 조회"""
+    token = _get_kis_token()
+    if not token:
+        return None
+    try:
+        resp = requests.get(
+            f"{KIS_BASE_URL}/uapi/overseas-price/v1/quotations/price",
+            headers={
+                "authorization": f"Bearer {token}",
+                "appkey": KIS_APP_KEY,
+                "appsecret": KIS_APP_SECRET,
+                "tr_id": "HHDFS00000300",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+            params={"AUTH": "", "EXCD": "NAS", "SYMB": symbol},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        output = data.get("output", {})
+        price = float(output.get("last", 0))
+        prev_close = float(output.get("base", 0))
+        if price > 0 and prev_close > 0:
+            change = price - prev_close
+            change_pct = change / prev_close * 100
+            return {
+                "price": round(price, 2),
+                "prev_close": round(prev_close, 2),
+                "change": round(change, 2),
+                "change_pct": round(change_pct, 2),
+                "day_high": round(float(output.get("high", 0) or 0), 2) or None,
+                "day_low": round(float(output.get("low", 0) or 0), 2) or None,
+            }
+    except Exception as e:
+        logger.warning(f"KIS API failed: {e}")
+    return None
 
 
 def _is_market_open() -> bool:
@@ -141,8 +207,10 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
         if not _is_trading_hours():
             return _price_cache
 
-    # 순서대로 시도: yfinance → Yahoo API v8 → Yahoo quote
-    raw = _fetch_yfinance(symbol)
+    # 순서대로 시도: KIS → yfinance → Yahoo API v8 → Yahoo quote
+    raw = _fetch_kis(symbol)
+    if not raw or raw["price"] == 0:
+        raw = _fetch_yfinance(symbol)
     if not raw or raw["price"] == 0:
         raw = _fetch_yahoo_api(symbol)
     if not raw or raw["price"] == 0:

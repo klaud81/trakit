@@ -8,6 +8,9 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/data:ro
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - TRAKIT_DATA_DIR=/data
       - TRAKIT_HOST=0.0.0.0
