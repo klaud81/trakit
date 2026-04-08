@@ -1,13 +1,16 @@
 #!/bin/bash
 # TRAKIT - 백엔드 + 프론트엔드 동시 실행 스크립트
 #
-# 사용법: bash start.sh
+# 사용법: bash start.sh [mock|real]
+#   mock  - 모의투자 API (기본값)
+#   real  - 실전투자 API
 # 종료: Ctrl+C
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_MODE="${1:-mock}"
 
-echo "🚀 TRAKIT 시작..."
+echo "🚀 TRAKIT 시작... (모드: $ENV_MODE)"
 echo ""
 
 # 포트 사용 중이면 기존 프로세스 종료
@@ -22,10 +25,13 @@ for PORT in 8000 5173; do
 done
 echo ""
 
-# 0. 로컬 .env.mock → .env 로딩
-if [ -f "$SCRIPT_DIR/backend/.env.mock" ]; then
-  cp "$SCRIPT_DIR/backend/.env.mock" "$SCRIPT_DIR/backend/.env"
-  echo "🔑 .env.mock → .env 로딩 완료"
+# 0. .env 로딩 (mock 또는 real)
+ENV_FILE="$SCRIPT_DIR/backend/.env.$ENV_MODE"
+if [ -f "$ENV_FILE" ]; then
+  cp "$ENV_FILE" "$SCRIPT_DIR/backend/.env"
+  echo "🔑 .env.$ENV_MODE → .env 로딩 완료"
+else
+  echo "⚠️  $ENV_FILE 파일이 없습니다. .env 없이 시작합니다."
 fi
 echo ""
 

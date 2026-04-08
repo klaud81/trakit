@@ -5,6 +5,6 @@ __pycache__/
 .vite/
 dist/
 .env
-.env.mock
+.env.*
 .omc/
 =0.2.40
