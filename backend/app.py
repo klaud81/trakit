@@ -2,10 +2,14 @@
 
 실행: cd backend && uvicorn app:app --reload --port 8000
 """
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
-from config import API_HOST, API_PORT, CORS_ORIGINS
+from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Trakit",
@@ -24,6 +28,11 @@ app.add_middleware(
 
 # API 라우터 (/api prefix)
 app.include_router(router)
+
+# 시작 로그
+_mode = "모의투자(Mock)" if KIS_MOCK else "실전투자(Real)"
+_key = KIS_APP_KEY[:10] + "..." if KIS_APP_KEY else "미설정"
+logger.info(f"🚀 Trakit API 시작 — KIS: {_mode} | URL: {KIS_BASE_URL} | Key: {_key}")
 
 
 @app.get("/")
