@@ -48,6 +48,7 @@ export default function App() {
   const [tradePoints, setTradePoints] = useState(null);
   const [history, setHistory] = useState(null);
   const [remaining, setRemaining] = useState(null);
+  const [exchangeRate, setExchangeRate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [priceRefreshing, setPriceRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -60,13 +61,14 @@ export default function App() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [portfolioData, signalData, priceData, tradeData, histData, remainData] = await Promise.all([
+      const [portfolioData, signalData, priceData, tradeData, histData, remainData, rateData] = await Promise.all([
         fetchApi('/portfolio'),
         fetchApi('/signals'),
         fetchApi('/price'),
         fetchApi('/trade-points'),
         fetchApi('/portfolio/history'),
         fetchApi('/remaining'),
+        fetchApi('/exchange-rate'),
       ]);
 
       // 모든 API가 null이면 (백엔드 미실행) 데모 데이터 사용
@@ -83,6 +85,7 @@ export default function App() {
       const normalized = histData?.map((w) => ({ ...w, week_num: Number(w.week_num) || w.week_num }));
       setHistory(normalized);
       setRemaining(remainData);
+      setExchangeRate(rateData);
 
       if (normalized && normalized.length > 0) {
         setAllWeeks(normalized);
@@ -251,7 +254,7 @@ export default function App() {
           </div>
         )}
         <div className="grid-2">
-          <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} />
+          <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} />
           <BandCard portfolio={portfolio} />
         </div>
         <SignalPanel signal={signal} price={portfolio?.price} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} />
@@ -261,7 +264,7 @@ export default function App() {
           <TradeTable title="매수 포인트 (BUY)" table={tradePoints?.buy_table} type="buy" unitSize={tradePoints?.unit_size} />
           <TradeTable title="매도 포인트 (SELL)" table={tradePoints?.sell_table} type="sell" unitSize={tradePoints?.unit_size} />
         </div>
-        <ProgressCard portfolio={portfolio} remaining={remaining} />
+        <ProgressCard portfolio={portfolio} remaining={remaining} exchangeRate={exchangeRate} />
         <div className="sponsor-card">
           <span style={{ fontSize: '22px' }}>☕</span>
           <div className="sponsor-card-text">

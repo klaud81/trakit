@@ -1,8 +1,10 @@
 import { fmt, fmtUSD } from '../utils/format';
 
-export default function PortfolioCard({ portfolio, signal, prevWeek }) {
+export default function PortfolioCard({ portfolio, signal, prevWeek, exchangeRate }) {
   if (!portfolio) return null;
   const signalType = signal ? signal.signal_type : 'HOLD';
+  const rate = exchangeRate?.rate || 1400;
+  const valKrw = Math.round(portfolio.valuation * rate);
 
   const sharesDiff = prevWeek ? portfolio.shares - (prevWeek.shares || 0) : null;
 
@@ -12,7 +14,12 @@ export default function PortfolioCard({ portfolio, signal, prevWeek }) {
       <div className={`signal-badge signal-${signalType}`}>
         {signalType === 'BUY' ? '▼ 매수' : signalType === 'SELL' ? '▲ 매도' : '━ 홀드'}
       </div>
-      <div className="portfolio-value">{fmtUSD(portfolio.valuation)}</div>
+      <div className="portfolio-value">
+        {fmtUSD(portfolio.valuation)}
+        <span style={{ fontSize: '16px', color: 'var(--text-muted)', marginLeft: '8px', fontWeight: 500 }}>
+          ({fmt(valKrw, 0)}원)
+        </span>
+      </div>
       <div className="portfolio-shares">
         {fmt(portfolio.shares, 0)}주 보유 · 평단 {fmtUSD(portfolio.avg_cost)}
         {sharesDiff !== null && sharesDiff !== 0 && (
@@ -20,6 +27,9 @@ export default function PortfolioCard({ portfolio, signal, prevWeek }) {
             ({sharesDiff > 0 ? '+' : ''}{fmt(sharesDiff, 0)}주)
           </span>
         )}
+        <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+          환율 {fmt(rate, 0)}원
+        </span>
       </div>
       <div className="portfolio-meta">
         <div className="meta-item">

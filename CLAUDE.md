@@ -46,6 +46,7 @@ cd backend && python -m pytest test/ -v
 - 실시간 가격은 SignalPanel 내부에 표시 (↻ 새로고침 아이콘)
 - 자동 갱신: `/api/config`에서 시간대/간격을 가져와 적용 (기본 KST 21~06시, 20초 간격)
 - 마지막 주차: 실시간 가격으로 평가금/시그널 재계산. 이전 주차: 저장 데이터 사용
+- 환율: `/api/exchange-rate`에서 가져와 PortfolioCard(원화 환산), ProgressCard(목표 금액) 적용
 - API 실패 시 `demoData.js`로 fallback
 
 ### 디자인 (Pencil)
