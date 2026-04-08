@@ -30,7 +30,7 @@ cd backend && python -m pytest test/ -v
 ## 코드 수정 시 주의사항
 
 ### 백엔드
-- 데이터 소스: Google Sheets가 기본 (`USE_GOOGLE_SHEETS=True`), 실패 시 로컬 CSV fallback
+- 데이터 소스: Google Sheets가 기본 (`USE_GOOGLE_SHEETS=True`), 실패 시 로컬 CSV fallback. 캐시 5일 유효, `POST /api/refresh`로 강제 갱신
 - Google Sheet ID: `1dI12c4AikkHMiT9dXRUhTCPxJwPA08IzBqAsl8zwUsM` (config.py)
 - `date_range` 형식: `"2026/3/23-4/3"` — 연도 넘김(12월→1월) 처리 필요
 - `week_num`: 문자열 ("258"). `week_label` ("258 주차")에서 추출
@@ -68,6 +68,7 @@ cd backend && python -m pytest test/ -v
 | GET | `/api/trade-points` | 매수/매도 포인트 |
 | GET | `/api/trade-points/calc` | 파라미터 기반 계산 (shares, min_band, max_band, pool) |
 | GET | `/api/remaining` | 남은 적립 횟수 |
+| POST | `/api/refresh` | Google Sheets 데이터 강제 갱신 |
 | GET | `/api/config` | 프론트엔드 설정 (갱신 시간대/간격) |
 | GET | `/api/exchange-rate` | USD/KRW 환율 (KST 17시 이후 갱신) |
 

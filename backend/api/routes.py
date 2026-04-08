@@ -12,6 +12,7 @@ from services.price_service import get_current_price, get_price_history
 from services.trade_calculator import get_trade_points, get_saved_trade_points, get_trade_points_by_params
 from services.backtesting_service import run_backtest
 from services.exchange_rate_service import get_exchange_rate
+from core.data_loader import refresh_base_sheet
 from core.signal_calculator import generate_signal
 
 router = APIRouter(prefix="/api")
@@ -129,6 +130,17 @@ async def config():
         "price_refresh_end_hour": 6,
         "timezone": "Asia/Seoul",
     }
+
+
+@router.post("/refresh")
+async def refresh():
+    """Google Sheets 데이터 강제 갱신"""
+    try:
+        df = refresh_base_sheet()
+        valid = len(df[df["price"].notna()])
+        return {"status": "ok", "rows": len(df), "valid_rows": valid}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/exchange-rate")

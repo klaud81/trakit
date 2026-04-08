@@ -2,6 +2,7 @@
 import pandas as pd
 import re
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 from config import BASE_SHEET_CSV, TRADE_SHEET_CSV, EXCHANGE_RATE_TSV, GOOGLE_SHEET_URL, USE_GOOGLE_SHEETS
@@ -49,19 +50,33 @@ def _load_from_csv(path: Optional[Path] = None) -> pd.DataFrame:
     return df
 
 
+_sheet_cache: Optional[pd.DataFrame] = None
+_sheet_cache_time: Optional[datetime] = None
+SHEET_CACHE_TTL_DAYS = 5
+
+
 def load_base_sheet(path: Optional[Path] = None) -> pd.DataFrame:
-    """base_sheet 로딩 (Google Sheets 우선, 실패시 로컬 CSV fallback)"""
+    """base_sheet 로딩 (캐시 5일 유효, 만료 시 자동 갱신)"""
+    global _sheet_cache, _sheet_cache_time
+
+    if _sheet_cache is not None and _sheet_cache_time and path is None:
+        elapsed = (datetime.now() - _sheet_cache_time).total_seconds()
+        if elapsed < SHEET_CACHE_TTL_DAYS * 86400:
+            return _sheet_cache.copy()
+        logger.info("📊 Google Sheets 캐시 만료 (5일), 자동 갱신")
+
     df = None
 
     if USE_GOOGLE_SHEETS and path is None:
         try:
             df = _load_from_google_sheets()
-            logger.info("Google Sheets에서 데이터 로딩 성공")
+            logger.info("📊 Google Sheets 데이터 캐시 저장")
         except Exception as e:
             logger.warning(f"Google Sheets 로딩 실패, 로컬 CSV fallback: {e}")
 
     if df is None:
         df = _load_from_csv(path)
+        logger.info("📊 로컬 CSV 데이터 캐시 저장")
 
     # week_num은 문자열로 보존 (204-1, 208-1 등 지원)
     df["week_num"] = df["week_num"].astype(str).str.strip()
@@ -76,7 +91,19 @@ def load_base_sheet(path: Optional[Path] = None) -> pd.DataFrame:
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    if path is None:
+        _sheet_cache = df.copy()
+        _sheet_cache_time = datetime.now()
+
     return df
+
+
+def refresh_base_sheet() -> pd.DataFrame:
+    """캐시를 강제 갱신하고 새 데이터를 반환"""
+    global _sheet_cache, _sheet_cache_time
+    _sheet_cache = None
+    _sheet_cache_time = None
+    return load_base_sheet()
 
 
 def load_exchange_rates(path: Optional[Path] = None) -> pd.DataFrame:
