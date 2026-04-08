@@ -1,6 +1,6 @@
 # Trakit API 명세
 
-Base URL: `http://localhost:8000/api`
+Base URL: `https://trakit.stock-snow.com/api` (운영) 또는 `http://localhost:8000/api` (로컬)
 
 ---
 
@@ -320,14 +320,46 @@ CSV 파일에 저장된 매매 포인트 조회.
 
 ---
 
-## 8. Config
+## 8. Refresh
+
+### `POST /api/refresh`
+
+Google Sheets 데이터 캐시를 강제 갱신합니다. 캐시는 기본 5일 유효하며, 이 API로 즉시 갱신할 수 있습니다.
+
+```bash
+# 운영
+curl -s -X POST https://trakit.stock-snow.com/api/refresh
+
+# 로컬
+curl -s -X POST http://localhost:8000/api/refresh
+```
+
+**Response** `200`
+```json
+{
+  "status": "ok",
+  "rows": 214,
+  "valid_rows": 63
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `rows` | int | 전체 행 수 |
+| `valid_rows` | int | 가격 데이터가 있는 유효 행 수 |
+
+---
+
+## 9. Config
+
+> 이하 curl 예시는 운영 URL(`https://trakit.stock-snow.com`) 기준입니다.
 
 ### `GET /api/config`
 
 프론트엔드 설정 조회. 가격 자동 갱신 시간대와 간격을 반환합니다.
 
 ```bash
-curl -s http://localhost:8000/api/config
+curl -s https://trakit.stock-snow.com/api/config
 ```
 
 **Response** `200`
@@ -349,7 +381,7 @@ curl -s http://localhost:8000/api/config
 
 ---
 
-## 9. Exchange Rate
+## 10. Exchange Rate
 
 ### `GET /api/exchange-rate`
 
@@ -357,7 +389,7 @@ USD/KRW 환율 조회. 하루 1회 외부 API에서 조회하여 캐싱합니다
 KST 17시 이후 첫 요청 시 갱신됩니다.
 
 ```bash
-curl -s http://localhost:8000/api/exchange-rate
+curl -s https://trakit.stock-snow.com/api/exchange-rate
 ```
 
 **Response** `200`
