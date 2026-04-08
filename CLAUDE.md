@@ -34,7 +34,9 @@ cd backend && python -m pytest test/ -v
 - Google Sheet ID: `1dI12c4AikkHMiT9dXRUhTCPxJwPA08IzBqAsl8zwUsM` (config.py)
 - `date_range` 형식: `"2026/3/23-4/3"` — 연도 넘김(12월→1월) 처리 필요
 - `week_num`: 문자열 ("258"). `week_label` ("258 주차")에서 추출
-- 실시간 가격: yfinance `fast_info` → Yahoo API v8 → Yahoo quote 순서. 캐시 30초, KST 21~06시만 갱신
+- 실시간 가격: KIS(한국투자증권) → yfinance → Yahoo API v8 → Yahoo quote 순서. 캐시 30초, KST 21~06시만 갱신
+- KIS API 키: `backend/.env`에 저장 (`.gitignore` 포함). AWS Parameter Store(`/trakit/*`)에서 관리
+- **시크릿 파일(.env, .pem, credentials)은 절대 커밋하지 않음**
 - 환율: `exchange_rate_service.py` — 외부 API 조회, KST 17시 이후 하루 1회 갱신 캐시
 - `chartPreviousClose`는 분할 조정값이므로 사용 금지. `previousClose` 또는 `closes[-2]` 사용
 - 날짜 필터링: 시작일이 오늘 이후인 미래 데이터 자동 제외 (`_filter_by_date`)
