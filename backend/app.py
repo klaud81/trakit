@@ -8,13 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY
 
-import time
+from datetime import datetime, timezone, timedelta
+
+KST = timezone(timedelta(hours=9))
 
 class KSTFormatter(logging.Formatter):
-    converter = time.localtime
     def formatTime(self, record, datefmt=None):
-        ct = self.converter(record.created)
-        return time.strftime("%Y-%m-%dT%H:%M:%S+09:00", ct)
+        dt = datetime.fromtimestamp(record.created, tz=KST)
+        return dt.strftime("%Y-%m-%dT%H:%M:%S+09:00")
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 _formatter = KSTFormatter(LOG_FORMAT)
