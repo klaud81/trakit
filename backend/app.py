@@ -8,7 +8,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=LOG_DATEFMT)
+
+# uvicorn 로거에도 동일 포맷 적용
+for name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
+    uv_logger = logging.getLogger(name)
+    uv_logger.handlers.clear()
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=LOG_DATEFMT))
+    uv_logger.addHandler(handler)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
