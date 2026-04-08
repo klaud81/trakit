@@ -10,6 +10,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "🚀 TRAKIT 시작..."
 echo ""
 
+# 포트 사용 중이면 기존 프로세스 종료
+for PORT in 8000 5173; do
+  PIDS=$(lsof -ti :$PORT 2>/dev/null || true)
+  if [ -n "$PIDS" ]; then
+    echo "⚠️  포트 $PORT 사용 중 (PID: $PIDS) — 종료합니다."
+    echo "$PIDS" | xargs kill -9 2>/dev/null || true
+    while lsof -ti :$PORT >/dev/null 2>&1; do sleep 0.5; done
+    echo "   ✅ 포트 $PORT 해제 완료"
+  fi
+done
+echo ""
+
 # 1. Backend 의존성 확인 & 설치
 echo "📦 Backend 의존성 설치..."
 cd "$SCRIPT_DIR/backend"
