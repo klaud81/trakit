@@ -44,10 +44,10 @@ def _is_trading_hours() -> bool:
 
 
 def _fetch_yahoo_api(symbol: str) -> Optional[dict]:
-    """Yahoo Finance API v8로 실시간 가격 조회"""
+    """Yahoo Finance API v8로 실시간 가격 조회 (range=1d로 정확한 전일 종가 확보)"""
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-        params = {"interval": "1d", "range": "5d"}
+        params = {"interval": "1m", "range": "1d"}
         headers = {"User-Agent": "Mozilla/5.0"}
         resp = requests.get(url, params=params, headers=headers, timeout=10)
         resp.raise_for_status()
@@ -57,20 +57,8 @@ def _fetch_yahoo_api(symbol: str) -> Optional[dict]:
         meta = result["meta"]
 
         price = meta.get("regularMarketPrice", 0)
-        prev_close = meta.get("previousClose", 0)
-
-        # previousClose가 없으면 실제 종가 데이터에서 전일 종가 계산
-        # chartPreviousClose는 분할/배당 조정값이라 부호가 뒤집힐 수 있어 사용하지 않음
-        if not prev_close:
-            try:
-                closes = result["indicators"]["quote"][0]["close"]
-                valid_closes = [c for c in closes if c is not None]
-                if len(valid_closes) >= 2:
-                    prev_close = valid_closes[-2]
-            except (KeyError, IndexError):
-                pass
-        if not prev_close:
-            prev_close = meta.get("chartPreviousClose", 0)
+        # range=1d에서는 chartPreviousClose가 실제 전일 종가 (조정값 아님)
+        prev_close = meta.get("chartPreviousClose", 0) or meta.get("previousClose", 0)
 
         return {
             "price": round(float(price), 2),
