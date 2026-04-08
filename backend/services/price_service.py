@@ -6,7 +6,7 @@ import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from config import SYMBOL, KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
+from config import SYMBOL
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ def _get_kis_token() -> Optional[str]:
     global _kis_token, _kis_token_expires
     if _kis_token and _kis_token_expires and datetime.now() < _kis_token_expires:
         return _kis_token
+    from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
     if not KIS_APP_KEY or not KIS_APP_SECRET:
         return None
     try:
@@ -52,6 +53,7 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
     token = _get_kis_token()
     if not token:
         return None
+    from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
     try:
         resp = requests.get(
             f"{KIS_BASE_URL}/uapi/overseas-price/v1/quotations/price",
@@ -219,7 +221,6 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
     if raw and raw["price"] > 0:
         price = raw["price"]
         prev_close = raw["prev_close"]
-        # yfinance에서 직접 제공한 change/change_pct 사용 (정확함)
         if "change" in raw:
             change = raw["change"]
             change_pct = raw["change_pct"]
@@ -234,8 +235,8 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
             "change_pct": round(change_pct, 2),
             "timestamp": datetime.now().isoformat(),
             "prev_close": round(prev_close, 2) if prev_close else None,
-            "day_high": raw.get("day_high"),
-            "day_low": raw.get("day_low"),
+            "day_high": round(raw["day_high"], 2) if raw.get("day_high") else None,
+            "day_low": round(raw["day_low"], 2) if raw.get("day_low") else None,
             "market_open": _is_market_open(),
         }
 

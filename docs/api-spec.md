@@ -138,21 +138,21 @@ Base URL: `http://localhost:8000/api`
 
 ### `GET /api/price`
 
-실시간 TQQQ 가격 조회. yfinance → Yahoo API v8 → Yahoo quote 순서로 fallback.
-30초 캐싱 적용.
+실시간 TQQQ 가격 조회. KIS(한국투자증권) → yfinance → Yahoo API v8 → Yahoo quote 순서로 fallback.
+30초 캐싱, KST 21~06시만 갱신.
 
 **Response** `200`
 ```json
 {
   "symbol": "TQQQ",
-  "price": 41.10,
-  "change": 3.21,
-  "change_pct": 8.47,
-  "timestamp": "2026-04-01T14:30:00.000000",
-  "prev_close": 37.89,
-  "day_high": 41.50,
-  "day_low": 40.20,
-  "market_open": false
+  "price": 48.08,
+  "change": 3.93,
+  "change_pct": 8.90,
+  "timestamp": "2026-04-09T02:53:22.212049",
+  "prev_close": 44.15,
+  "day_high": 48.92,
+  "day_low": 47.15,
+  "market_open": true
 }
 ```
 
@@ -165,8 +165,8 @@ Base URL: `http://localhost:8000/api`
 | `change` | float | 전일 대비 변동 ($) |
 | `change_pct` | float | 전일 대비 변동률 (%) |
 | `prev_close` | float | 전일 종가 |
-| `day_high` | float | 당일 최고가 (nullable) |
-| `day_low` | float | 당일 최저가 (nullable) |
+| `day_high` | float | 당일 최고가 (장중 제공, 장 마감 시 null 가능) |
+| `day_low` | float | 당일 최저가 (장중 제공, 장 마감 시 null 가능) |
 | `market_open` | bool | 시장 개장 여부 (ET 9:30~16:00) |
 
 ---

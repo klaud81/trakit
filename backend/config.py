@@ -1,6 +1,9 @@
 """Trakit 설정"""
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # 프로젝트 루트 (backend/ 의 부모 = trakit/)
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -46,7 +49,9 @@ DEFAULT_FEE_RATE = 0.003  # 0.3%
 KIS_APP_KEY = os.getenv("KIS_APP_KEY", "")
 KIS_APP_SECRET = os.getenv("KIS_APP_SECRET", "")
 KIS_MOCK = os.getenv("KIS_MOCK", "true").lower() == "true"
-KIS_BASE_URL = "https://openapivts.koreainvestment.com:29443" if KIS_MOCK else "https://openapi.koreainvestment.com:9443"
+_KIS_MOCK_URL = "https://openapivts.koreainvestment.com:29443"
+_KIS_REAL_URL = "https://openapi.koreainvestment.com:9443"
+KIS_BASE_URL = os.getenv("KIS_BASE_URL", _KIS_MOCK_URL if KIS_MOCK else _KIS_REAL_URL)
 
 # API 설정
 API_HOST = os.getenv("TRAKIT_HOST", "0.0.0.0")
