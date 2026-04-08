@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
