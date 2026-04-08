@@ -84,6 +84,7 @@ def get_exchange_rate() -> dict:
             "source": "live",
         }
         _cache_time = datetime.now(KST)
+        logger.info(f"💱 환율 캐시 저장: 1 USD = {rate} KRW")
         return _rate_cache
 
     # 조회 실패 시 캐시 반환

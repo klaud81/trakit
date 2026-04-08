@@ -41,7 +41,7 @@ def _get_kis_token() -> Optional[str]:
         data = resp.json()
         _kis_token = data["access_token"]
         _kis_token_expires = datetime.now() + timedelta(hours=23)
-        logger.info("KIS API 토큰 발급 성공")
+        logger.info(f"🔑 KIS 토큰 캐시 저장 (만료: {_kis_token_expires.strftime('%Y-%m-%d %H:%M')})")
         return _kis_token
     except Exception as e:
         logger.warning(f"KIS token failed: {e}")
@@ -242,6 +242,7 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
 
         _price_cache = result
         _cache_time = datetime.now()
+        logger.info(f"💰 가격 캐시 저장: ${price} (변동: {change:+.2f}, {change_pct:+.2f}%) prev_close=${prev_close}")
         return result
 
     # 모든 소스 실패
