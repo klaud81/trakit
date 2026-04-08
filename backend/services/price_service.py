@@ -17,18 +17,30 @@ _cache_time: Optional[datetime] = None
 CACHE_TTL_SECONDS = 30  # 30초 캐시
 
 
+KST = timezone(timedelta(hours=9))
+
+
 def _is_market_open() -> bool:
-    """미국 주식 시장 개장 여부 (간단한 체크)"""
-    now_et = datetime.now(timezone(timedelta(hours=-4)))  # EDT
-    weekday = now_et.weekday()
-    if weekday >= 5:  # 토/일
+    """미국 주식 시장 개장 여부 (KST 기준 21:30~06:00, 주말 제외)"""
+    now_kst = datetime.now(KST)
+    # ET 기준 평일 체크
+    now_et = datetime.now(timezone(timedelta(hours=-4)))
+    if now_et.weekday() >= 5:
         return False
-    hour = now_et.hour
-    minute = now_et.minute
-    # 9:30 ~ 16:00 ET
-    if hour < 9 or (hour == 9 and minute < 30) or hour >= 16:
-        return False
-    return True
+    hour = now_kst.hour
+    minute = now_kst.minute
+    # KST 21:30 ~ 다음날 06:00 (서머타임 기준, ET 9:30~16:00 ≈ KST 22:30~05:00 but 여유 있게)
+    if hour >= 22 or (hour == 21 and minute >= 30):
+        return True
+    if hour < 6:
+        return True
+    return False
+
+
+def _is_trading_hours() -> bool:
+    """KST 21시~06시 사이인지 (자동 갱신 시간대)"""
+    hour = datetime.now(KST).hour
+    return hour >= 21 or hour < 6
 
 
 def _fetch_yahoo_api(symbol: str) -> Optional[dict]:
@@ -123,13 +135,22 @@ def _fetch_yfinance(symbol: str) -> Optional[dict]:
     return None
 
 
-def get_current_price(symbol: str = SYMBOL, use_cache: bool = True) -> dict:
-    """실시간 TQQQ 가격 조회 (다중 소스 fallback)"""
+def get_current_price(symbol: str = SYMBOL) -> dict:
+    """실시간 TQQQ 가격 조회
+
+    캐시 정책:
+    - 캐시 있고 30초 이내 → 캐시 반환
+    - KST 21~06시(트레이딩 시간) + 30초 초과 → 재조회
+    - KST 06~21시(비트레이딩) → 캐시 반환 (없으면 1회 조회)
+    """
     global _price_cache, _cache_time
 
-    if use_cache and _price_cache and _cache_time:
+    if _price_cache and _cache_time:
         elapsed = (datetime.now() - _cache_time).total_seconds()
         if elapsed < CACHE_TTL_SECONDS:
+            return _price_cache
+        # 트레이딩 시간이 아니면 캐시 반환
+        if not _is_trading_hours():
             return _price_cache
 
     # 순서대로 시도: yfinance → Yahoo API v8 → Yahoo quote

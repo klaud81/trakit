@@ -11,6 +11,7 @@ from services.portfolio_service import (
 from services.price_service import get_current_price, get_price_history
 from services.trade_calculator import get_trade_points, get_saved_trade_points, get_trade_points_by_params
 from services.backtesting_service import run_backtest
+from services.exchange_rate_service import get_exchange_rate
 from core.signal_calculator import generate_signal
 
 router = APIRouter(prefix="/api")
@@ -115,5 +116,25 @@ async def remaining():
     """남은 적립 횟수"""
     try:
         return get_remaining_cycles()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/config")
+async def config():
+    """프론트엔드 설정 (자동 갱신 시간대, 간격 등)"""
+    return {
+        "price_refresh_interval": 20,
+        "price_refresh_start_hour": 21,
+        "price_refresh_end_hour": 6,
+        "timezone": "Asia/Seoul",
+    }
+
+
+@router.get("/exchange-rate")
+async def exchange_rate():
+    """USD/KRW 환율 (하루 1회 갱신)"""
+    try:
+        return get_exchange_rate()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

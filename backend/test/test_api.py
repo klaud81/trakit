@@ -187,6 +187,19 @@ class TestRemaining:
         assert data["remaining_weeks"] > 0
 
 
+class TestExchangeRate:
+    def test_exchange_rate(self, client):
+        """GET /api/exchange-rate - USD/KRW 환율"""
+        resp = client.get("/api/exchange-rate")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["base"] == "USD"
+        assert data["target"] == "KRW"
+        assert data["rate"] > 0
+        assert "date" in data
+        assert data["source"] in ("live", "default")
+
+
 class TestRoot:
     def test_root(self, client):
         """GET / - 루트 엔드포인트"""

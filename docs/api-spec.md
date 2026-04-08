@@ -320,6 +320,81 @@ CSV 파일에 저장된 매매 포인트 조회.
 
 ---
 
+## 8. Config
+
+### `GET /api/config`
+
+프론트엔드 설정 조회. 가격 자동 갱신 시간대와 간격을 반환합니다.
+
+```bash
+curl -s http://localhost:8000/api/config
+```
+
+**Response** `200`
+```json
+{
+  "price_refresh_interval": 20,
+  "price_refresh_start_hour": 21,
+  "price_refresh_end_hour": 6,
+  "timezone": "Asia/Seoul"
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `price_refresh_interval` | int | 가격 자동 갱신 간격 (초) |
+| `price_refresh_start_hour` | int | 자동 갱신 시작 시각 (KST) |
+| `price_refresh_end_hour` | int | 자동 갱신 종료 시각 (KST) |
+| `timezone` | string | 시간대 |
+
+---
+
+## 9. Exchange Rate
+
+### `GET /api/exchange-rate`
+
+USD/KRW 환율 조회. 하루 1회 외부 API에서 조회하여 캐싱합니다.
+KST 17시 이후 첫 요청 시 갱신됩니다.
+
+```bash
+curl -s http://localhost:8000/api/exchange-rate
+```
+
+**Response** `200`
+```json
+{
+  "base": "USD",
+  "target": "KRW",
+  "rate": 1496.3,
+  "date": "2026-04-09",
+  "source": "live"
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `base` | string | 기준 통화 |
+| `target` | string | 대상 통화 |
+| `rate` | float | 환율 (1 USD = N KRW) |
+| `date` | string | 환율 날짜 |
+| `source` | string | `live` (외부 API) 또는 `default` (기본값 1400) |
+
+**캐시 정책:**
+- 캐시 없음 → 외부 API 조회 → 캐시 저장
+- 캐시 있음 + KST 17시 이후 + 아직 갱신 안 됨 → 재조회
+- 그 외 → 캐시 반환
+
+**외부 API 소스 (fallback 순서):**
+```bash
+# 1순위: exchangerate-api
+curl -s "https://open.er-api.com/v6/latest/USD"
+
+# 2순위: frankfurter (ECB 기반)
+curl -s "https://api.frankfurter.dev/v1/latest?base=USD&symbols=KRW"
+```
+
+---
+
 ## 에러 응답
 
 모든 엔드포인트는 서버 에러 시 동일한 형식으로 응답합니다.

@@ -197,18 +197,33 @@ export default function App() {
     }
   };
 
-  /** 실시간 가격 자동 갱신 (30초, 장 마감 시 중단) */
+  /** 실시간 가격 자동 갱신 (config API 기반 시간대/간격) */
+  const [refreshConfig, setRefreshConfig] = useState(null);
+
   useEffect(() => {
-    if (price && price.market_open === false) return;
+    fetchApi('/config').then((cfg) => { if (cfg) setRefreshConfig(cfg); });
+  }, []);
+
+  useEffect(() => {
+    if (!refreshConfig) return;
+    const { price_refresh_interval, price_refresh_start_hour, price_refresh_end_hour, timezone } = refreshConfig;
+    const isTradingHours = () => {
+      const hour = new Date(new Date().toLocaleString('en-US', { timeZone: timezone })).getHours();
+      return price_refresh_start_hour > price_refresh_end_hour
+        ? (hour >= price_refresh_start_hour || hour < price_refresh_end_hour)
+        : (hour >= price_refresh_start_hour && hour < price_refresh_end_hour);
+    };
+    if (!isTradingHours()) return;
     const refreshPrice = async () => {
+      if (!isTradingHours()) return;
       setPriceRefreshing(true);
       const p = await fetchApi('/price');
       if (p && p.price > 0) setPrice(p);
       setPriceRefreshing(false);
     };
-    const interval = setInterval(refreshPrice, 30_000);
+    const interval = setInterval(refreshPrice, price_refresh_interval * 1000);
     return () => clearInterval(interval);
-  }, [price?.market_open]);
+  }, [refreshConfig]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

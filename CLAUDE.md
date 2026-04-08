@@ -22,7 +22,7 @@ cd backend && python -m pytest test/ -v
 - `backend/` — FastAPI 서버. 진입점: `app.py`, 설정: `config.py`
 - `backend/api/routes.py` — 모든 API 엔드포인트 (`/api/*`)
 - `backend/core/data_loader.py` — Google Sheets / CSV 데이터 로딩
-- `backend/services/` — portfolio, price, trade_calculator, backtesting 서비스
+- `backend/services/` — portfolio, price, trade_calculator, backtesting, exchange_rate 서비스
 - `frontend/src/App.jsx` — 메인 앱 (상태관리, 데이터 로딩, 주차 네비게이션)
 - `frontend/src/components/` — UI 컴포넌트 (Header, SignalPanel, EquityChart 등)
 - `data/` — 로컬 CSV/TSV fallback 데이터
@@ -34,7 +34,8 @@ cd backend && python -m pytest test/ -v
 - Google Sheet ID: `1dI12c4AikkHMiT9dXRUhTCPxJwPA08IzBqAsl8zwUsM` (config.py)
 - `date_range` 형식: `"2026/3/23-4/3"` — 연도 넘김(12월→1월) 처리 필요
 - `week_num`: 문자열 ("258"). `week_label` ("258 주차")에서 추출
-- 실시간 가격: yfinance `fast_info` → Yahoo API v8 → Yahoo quote 순서
+- 실시간 가격: yfinance `fast_info` → Yahoo API v8 → Yahoo quote 순서. 캐시 30초, KST 21~06시만 갱신
+- 환율: `exchange_rate_service.py` — 외부 API 조회, KST 17시 이후 하루 1회 갱신 캐시
 - `chartPreviousClose`는 분할 조정값이므로 사용 금지. `previousClose` 또는 `closes[-2]` 사용
 - 날짜 필터링: 시작일이 오늘 이후인 미래 데이터 자동 제외 (`_filter_by_date`)
 
@@ -42,7 +43,8 @@ cd backend && python -m pytest test/ -v
 - `week_num`은 숫자로 변환하여 사용 (차트 ReferenceLine 매칭)
 - XAxis: `type="number"`, `domain=['dataMin', 'dataMax']`
 - 가격 색상: 상승(+) 빨간색 `#E53935`, 하락(-) 파란색 `#1E88E5`
-- 실시간 가격은 SignalPanel 내부에 표시 (↻ 새로고침 아이콘, 30초 자동 갱신)
+- 실시간 가격은 SignalPanel 내부에 표시 (↻ 새로고침 아이콘)
+- 자동 갱신: `/api/config`에서 시간대/간격을 가져와 적용 (기본 KST 21~06시, 20초 간격)
 - 마지막 주차: 실시간 가격으로 평가금/시그널 재계산. 이전 주차: 저장 데이터 사용
 - API 실패 시 `demoData.js`로 fallback
 
@@ -61,6 +63,8 @@ cd backend && python -m pytest test/ -v
 | GET | `/api/trade-points` | 매수/매도 포인트 |
 | GET | `/api/trade-points/calc` | 파라미터 기반 계산 (shares, min_band, max_band, pool) |
 | GET | `/api/remaining` | 남은 적립 횟수 |
+| GET | `/api/config` | 프론트엔드 설정 (갱신 시간대/간격) |
+| GET | `/api/exchange-rate` | USD/KRW 환율 (KST 17시 이후 갱신) |
 
 상세: [docs/api-spec.md](docs/api-spec.md)
 
@@ -76,7 +80,7 @@ cd backend && python -m pytest test/ -v
 ## 테스트
 
 ```bash
-cd backend && python -m pytest test/ -v  # 18개 API 테스트
+cd backend && python -m pytest test/ -v  # 19개 API 테스트
 ```
 
 테스트 파일: `backend/test/test_api.py` — FastAPI TestClient 기반
