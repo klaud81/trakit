@@ -22,6 +22,13 @@ for PORT in 8000 5173; do
 done
 echo ""
 
+# 0. 로컬 .env.mock → .env 로딩
+if [ -f "$SCRIPT_DIR/backend/.env.mock" ]; then
+  cp "$SCRIPT_DIR/backend/.env.mock" "$SCRIPT_DIR/backend/.env"
+  echo "🔑 .env.mock → .env 로딩 완료"
+fi
+echo ""
+
 # 1. Backend 의존성 확인 & 설치
 echo "📦 Backend 의존성 설치..."
 cd "$SCRIPT_DIR/backend"
