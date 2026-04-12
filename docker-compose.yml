@@ -12,7 +12,7 @@ services:
         max-size: "10m"
         max-file: "3"
     volumes:
-      - ./data:/data:ro
+      - ./data:/data
     env_file:
       - path: ./backend/.env
         required: false
