@@ -127,12 +127,16 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
     goal_usd = GOAL_KRW / exchange["rate"]
     goal_progress = (total_value / goal_usd) * 100
 
+    avg_cost = round(float(last["avg_cost"]), 2) if pd.notna(last["avg_cost"]) else None
+    profit = round((price - avg_cost) * shares, 2) if avg_cost and avg_cost > 0 else None
+    profit_pct = round((price - avg_cost) / avg_cost * 100, 2) if avg_cost and avg_cost > 0 else None
+
     return {
         "week_num": _week_str(last["week_num"]),
         "date_range": str(last["date_range"]) if pd.notna(last["date_range"]) else None,
         "price": round(price, 2),
         "shares": shares,
-        "avg_cost": round(float(last["avg_cost"]), 2) if pd.notna(last["avg_cost"]) else None,
+        "avg_cost": avg_cost,
         "valuation": round(valuation, 2),
         "pool": round(pool, 2),
         "target_value": round(target_value, 2),
@@ -141,6 +145,9 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
         "growth_stage": g,
         "total_value": round(total_value, 2),
         "goal_progress": round(goal_progress, 2),
+        "profit": profit,
+        "profit_pct": profit_pct,
+        "exchange_rate": exchange["rate"],
         "updated_at": datetime.now().isoformat(),
     }
 

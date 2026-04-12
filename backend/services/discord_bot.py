@@ -89,21 +89,24 @@ def handle_command(command_name: str) -> str:
 
         elif command_name == "signal":
             from services.portfolio_service import get_current_portfolio
+            from services.price_service import get_current_price
             from core.signal_calculator import generate_signal
-            portfolio = get_current_portfolio()
-            signal = generate_signal(portfolio)
+            live = get_current_price()
+            current_price = live["price"] if live["price"] > 0 else None
+            portfolio = get_current_portfolio(current_price=current_price)
+            signal = generate_signal(portfolio, current_price=current_price)
             emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(signal["signal_type"], "⚪")
-            msg = f"{emoji} **{signal['signal_type']}**\n"
+            msg = f"{emoji} **{signal['signal_type']}** | TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%)\n"
             msg += f"{signal['recommendation']}\n"
-            if portfolio.get("avg_cost") and portfolio["avg_cost"] > 0:
-                profit_pct = (portfolio["price"] - portfolio["avg_cost"]) / portfolio["avg_cost"] * 100
-                total_profit = (portfolio["price"] - portfolio["avg_cost"]) * portfolio["shares"]
-                msg += f"수익률: {total_profit:+,.0f}$ ({profit_pct:+.2f}%)"
+            if portfolio.get("profit") is not None:
+                msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)"
             return msg
 
         elif command_name == "portfolio":
             from services.portfolio_service import get_current_portfolio
-            p = get_current_portfolio()
+            from services.price_service import get_current_price
+            live = get_current_price()
+            p = get_current_portfolio(current_price=live["price"] if live["price"] > 0 else None)
             msg = f"📊 **포트폴리오** ({p['week_num']}주차)\n"
             msg += f"평가금: ${p['valuation']:,.2f}\n"
             msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}\n"

@@ -50,6 +50,8 @@ async def signals(price: Optional[float] = Query(None)):
     try:
         portfolio = get_current_portfolio(current_price=price)
         signal = generate_signal(portfolio, current_price=price)
+        signal["profit"] = portfolio.get("profit")
+        signal["profit_pct"] = portfolio.get("profit_pct")
         return signal
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
