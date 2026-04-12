@@ -48,6 +48,9 @@ Base URL: `https://trakit.stock-snow.com/api` (운영) 또는 `http://localhost:
   "growth_stage": 12,
   "total_value": 59158.15,
   "goal_progress": 5.97,
+  "profit": 7106.88,
+  "profit_pct": 12.03,
+  "exchange_rate": 1496.3,
   "updated_at": "2026-04-01T14:30:00.000000"
 }
 ```
@@ -69,6 +72,9 @@ Base URL: `https://trakit.stock-snow.com/api` (운영) 또는 `http://localhost:
 | `growth_stage` | int | 성장 구간 (G) |
 | `total_value` | float | 총 자산 (valuation + pool) |
 | `goal_progress` | float | 목표 달성률 (%) |
+| `profit` | float | 수익금 (현재가 - 평단) × 보유수량 (nullable) |
+| `profit_pct` | float | 수익률 % (nullable) |
+| `exchange_rate` | float | 적용 환율 (USD/KRW) |
 
 ---
 
@@ -121,7 +127,9 @@ Base URL: `https://trakit.stock-snow.com/api` (운영) 또는 `http://localhost:
   "max_band": 73365.29,
   "distance_to_buy": 4284.91,
   "distance_to_sell": 19687.61,
-  "recommendation": "홀드: 밴드 내 18% 위치. 현재 상태 유지하세요."
+  "recommendation": "홀드: 밴드 내 18% 위치. 현재 상태 유지하세요.",
+  "profit": 7106.88,
+  "profit_pct": 12.03
 }
 ```
 
