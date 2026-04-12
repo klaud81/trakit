@@ -69,7 +69,11 @@ cd backend && python -m pytest test/ -v
 | GET | `/api/trade-points` | 매수/매도 포인트 |
 | GET | `/api/trade-points/calc` | 파라미터 기반 계산 (shares, min_band, max_band, pool) |
 | GET | `/api/remaining` | 남은 적립 횟수 |
+| POST | `/api/visit` | 방문 기록 + 통계 반환 |
+| GET | `/api/visitors` | 방문자 통계 (오늘/월간/누적) |
+| POST | `/api/notify` | Discord 웹훅 알림 전송 |
 | POST | `/api/refresh` | Google Sheets 데이터 강제 갱신 |
+| POST | `/api/discord/interactions` | Discord 슬래시 명령어 처리 |
 | GET | `/api/config` | 프론트엔드 설정 (갱신 시간대/간격) |
 | GET | `/api/exchange-rate` | USD/KRW 환율 (KST 17시 이후 갱신) |
 

@@ -329,7 +329,57 @@ CSV 파일에 저장된 매매 포인트 조회.
 
 ---
 
-## 8. Refresh
+## 8. Visitors
+
+### `POST /api/visit`
+
+방문 기록 + 통계 반환. 프론트엔드 초기 로딩 시 1회 호출.
+
+```bash
+curl -s -X POST https://trakit.stock-snow.com/api/visit
+```
+
+### `GET /api/visitors`
+
+방문자 통계 조회 (기록 없이 조회만).
+
+```bash
+curl -s https://trakit.stock-snow.com/api/visitors
+```
+
+**Response** `200`
+```json
+{
+  "today": 15,
+  "month": 245,
+  "total": 1234,
+  "date": "2026/04/13"
+}
+```
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `today` | int | 오늘 방문자 수 |
+| `month` | int | 당월 방문자 수 |
+| `total` | int | 누적 방문자 수 |
+
+**저장 형식** (`data/visitors.json`)
+```json
+{
+  "daily": {"2026/04/12": 15, "2026/04/13": 3},
+  "monthly": {"2026/03": 245},
+  "total": 1234
+}
+```
+
+- `daily` — 당월 일별 방문자 (월 변경 시 `monthly`로 자동 집계)
+- `monthly` — 이전 월별 집계
+- `total` — 누적 합계
+
+---
+
+## 9. Refresh
+
 
 ### `POST /api/refresh`
 
