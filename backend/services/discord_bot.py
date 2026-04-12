@@ -134,7 +134,9 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 portfolio = get_current_portfolio(current_price=current_price)
                 signal = generate_signal(portfolio, current_price=current_price)
                 emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(signal["signal_type"], "⚪")
-                msg = f"{emoji} **{signal['signal_type']}** | TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%)\n"
+                date_range = portfolio.get('date_range', '')
+                msg = f"{emoji} **{signal['signal_type']}** | {portfolio['week_num']}주차 ({date_range})\n"
+                msg += f"TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%)\n"
                 msg += f"{signal['recommendation']}\n"
                 if portfolio.get("profit") is not None:
                     msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)"
@@ -163,7 +165,7 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 from services.price_service import get_current_price
                 live = get_current_price()
                 p = get_current_portfolio(current_price=live["price"] if live["price"] > 0 else None)
-                msg = f"📊 **포트폴리오** ({p['week_num']}주차)\n"
+                msg = f"📊 **포트폴리오** ({p['week_num']}주차 · {p.get('date_range', '')})\n"
                 msg += f"평가금: ${p['valuation']:,.2f}\n"
                 msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}\n"
                 msg += f"Pool: ${p['pool']:,.2f}\n"
