@@ -53,3 +53,115 @@
    - 사용자별 KIS 키/계좌 암호화 저장
    - 주문 이력 관리 UI
    - 주문 상태 알림 (웹소켓/폴링)
+
+---
+
+## WebSocket 실시간 통신
+
+### 개요
+현재 폴링(20초) 방식을 WebSocket으로 전환하여 실시간 데이터 push 구현.
+
+### 도입 시점
+- 예약주문 기능 구현 시 (주문 체결/취소 상태 실시간 push)
+- 다중 사용자 서비스 확장 시 (폴링 부하 감소)
+- KIS WebSocket 실시간 체결가 연동 시
+
+### 아키텍처
+
+```
+[KIS WebSocket] → [Backend (relay)] → [Client WebSocket]
+                                     → [Discord Webhook]
+```
+
+### 백엔드 (FastAPI WebSocket)
+
+```python
+# FastAPI 네이티브 WebSocket 지원
+from fastapi import WebSocket
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        data = get_current_price()
+        await websocket.send_json(data)
+        await asyncio.sleep(20)
+```
+
+### 프론트엔드 (React)
+
+```javascript
+useEffect(() => {
+  const ws = new WebSocket('wss://trakit.stock-snow.com/ws');
+  ws.onmessage = (e) => setPrice(JSON.parse(e.data));
+  return () => ws.close();
+}, []);
+```
+
+### KIS WebSocket 실시간 체결가
+
+| 항목 | 내용 |
+|------|------|
+| URL | `ws://ops.koreainvestment.com:21000` (실전) |
+| URL (모의) | `ws://ops.koreainvestment.com:31000` |
+| 구독 | `tr_id: HDFSCNT0` (해외주식 실시간 체결가) |
+| 데이터 | 체결가, 체결량, 시간 등 tick 단위 |
+
+```python
+# KIS WebSocket 구독 예시
+import websockets
+
+async def kis_realtime():
+    async with websockets.connect("ws://ops.koreainvestment.com:21000") as ws:
+        # 인증 + TQQQ 구독
+        await ws.send(json.dumps({
+            "header": {"tr_id": "HDFSCNT0", "tr_key": "DNAS|TQQQ"},
+            "body": {"tr_id": "HDFSCNT0", "tr_key": "DNAS|TQQQ"}
+        }))
+        async for message in ws:
+            data = parse_kis_message(message)
+            # 클라이언트에 relay
+```
+
+### Push 이벤트 종류
+
+| 이벤트 | 데이터 | 트리거 |
+|--------|--------|--------|
+| `price_update` | 현재가, 변동, 등락률 | KIS 실시간 체결 또는 20초 폴링 |
+| `signal_change` | BUY/SELL/HOLD 변경 | 밴드 기준 판단 변경 시 |
+| `order_update` | 주문 상태 (접수/체결/취소) | 예약주문 상태 변경 시 |
+| `data_refresh` | 갱신 결과 | Google Sheets 갱신 완료 시 |
+
+### 구현 단계
+
+1. **Phase 1: 기본 WebSocket**
+   - FastAPI WebSocket 엔드포인트 (`/ws`)
+   - 가격 데이터 20초 push (폴링 대체)
+   - 프론트엔드 WebSocket 클라이언트
+   - nginx WebSocket proxy 설정 (`proxy_set_header Upgrade`)
+
+2. **Phase 2: KIS 실시간 연동**
+   - KIS WebSocket 구독 (TQQQ 실시간 체결가)
+   - 백엔드에서 수신 → 클라이언트에 relay
+   - 시그널 변경 자동 감지 및 push
+
+3. **Phase 3: 주문 상태 push**
+   - 예약주문 상태 변경 시 WebSocket push
+   - Discord webhook 동시 알림
+   - 연결 관리 (reconnect, heartbeat)
+
+### nginx WebSocket 설정
+
+```nginx
+location /ws {
+    proxy_pass http://backend:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+}
+```
+
+### 의존성
+- `websockets>=12.0` (KIS WebSocket 클라이언트)
+- FastAPI 내장 WebSocket (추가 패키지 불필요)
