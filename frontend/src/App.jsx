@@ -88,8 +88,13 @@ export default function App() {
       setRemaining(remainData);
       setExchangeRate(rateData);
 
-      // 방문 기록
-      fetchApi('/visit').then((v) => { if (v) setVisitors(v); });
+      // 방문 기록 (중복 방지)
+      if (!window.__trakit_visited) {
+        window.__trakit_visited = true;
+        fetchApi('/visit').then((v) => { if (v) setVisitors(v); });
+      } else {
+        fetchApi('/visitors').then((v) => { if (v) setVisitors(v); });
+      }
 
       if (normalized && normalized.length > 0) {
         setAllWeeks(normalized);
