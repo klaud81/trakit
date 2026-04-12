@@ -14,7 +14,7 @@ export default function ValueLineChart({ history, currentWeek }) {
       return {
         week_num: d.week_num,
         price: d.price,
-        e_per_share: d.valuation ? +(d.valuation / shares).toFixed(2) : null,
+        avg_cost: d.avg_cost || null,
         v_per_share: d.target_value ? +(d.target_value / shares).toFixed(2) : null,
         min_per_share: d.min_band ? +(d.min_band / shares).toFixed(2) : null,
         max_per_share: d.max_band ? +(d.max_band / shares).toFixed(2) : null,
@@ -25,7 +25,7 @@ export default function ValueLineChart({ history, currentWeek }) {
   // Y축 범위 계산 (여유 있게)
   const yDomain = useMemo(() => {
     const vals = perShareData.flatMap((d) =>
-      [d.price, d.e_per_share, d.v_per_share, d.min_per_share, d.max_per_share].filter((v) => v != null)
+      [d.price, d.avg_cost, d.v_per_share, d.min_per_share, d.max_per_share].filter((v) => v != null)
     );
     if (vals.length === 0) return [0, 100];
     const min = Math.min(...vals);
@@ -66,9 +66,9 @@ export default function ValueLineChart({ history, currentWeek }) {
             {currentWeek && (
               <ReferenceLine x={currentWeek} stroke="#FF8400" strokeDasharray="4 4" strokeWidth={1.5} label={{ value: `${currentWeek}w`, position: 'top', fontSize: 10, fill: '#FF8400' }} />
             )}
-            <Line type="monotone" dataKey="e_per_share" stroke="#9C27B0" strokeWidth={2} dot={false} name="평가금(E)/주" />
             <Line type="monotone" dataKey="price" stroke="#4CAF50" strokeWidth={2} dot={{ r: 2 }} name="TQQQ 가격" />
-            <Line type="monotone" dataKey="v_per_share" stroke="#FF8400" strokeWidth={2} strokeDasharray="6 3" dot={false} name="V/주" />
+            <Line type="monotone" dataKey="avg_cost" stroke="#9C27B0" strokeWidth={1.5} strokeDasharray="6 3" dot={false} connectNulls name="구매평단" />
+            <Line type="monotone" dataKey="v_per_share" stroke="#FF8400" strokeWidth={2} strokeDasharray="6 3" dot={false} name="V/주(평균)" />
             <Line type="monotone" dataKey="max_per_share" stroke="#D32F2F" strokeWidth={1} dot={false} name="최대/주" />
             <Line type="monotone" dataKey="min_per_share" stroke="#1565C0" strokeWidth={1} dot={false} name="최소/주" />
           </LineChart>

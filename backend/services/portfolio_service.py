@@ -166,6 +166,7 @@ def get_portfolio_history() -> list:
             "target_value": round(_safe_float(row["target_value"], 0), 2),
             "min_band": round(_safe_float(row["min_band"], 0), 2),
             "max_band": round(_safe_float(row["max_band"], 0), 2),
+            "avg_cost": round(_safe_float(row["avg_cost"], 0), 2) if pd.notna(row["avg_cost"]) else None,
             "g": _safe_int(row["g"]),
         })
     return history

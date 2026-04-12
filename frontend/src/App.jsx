@@ -257,7 +257,7 @@ export default function App() {
           <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} />
           <BandCard portfolio={portfolio} />
         </div>
-        <SignalPanel signal={signal} price={portfolio?.price} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} />
+        <SignalPanel signal={signal} portfolio={portfolio} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} isLastWeek={weekIdx === allWeeks.length - 1} />
         <EquityChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <ValueLineChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <div className="grid-2">

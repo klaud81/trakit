@@ -1,9 +1,15 @@
 import { fmt, fmtPct, fmtUSD } from '../utils/format';
 
-export default function SignalPanel({ signal, price, livePrice, priceRefreshing, tradePoints }) {
+export default function SignalPanel({ signal, portfolio, livePrice, priceRefreshing, tradePoints, isLastWeek }) {
   if (!signal) return null;
   const buyPrice = tradePoints?.buy_table?.rows?.[0]?.price || 0;
   const sellPrice = tradePoints?.sell_table?.rows?.[0]?.price || 0;
+
+  const avgCost = portfolio?.avg_cost || 0;
+  const currentPrice = (isLastWeek && livePrice?.price > 0) ? livePrice.price : (portfolio?.price || 0);
+  const profitPerShare = avgCost > 0 ? currentPrice - avgCost : 0;
+  const profitPct = avgCost > 0 ? (profitPerShare / avgCost * 100) : 0;
+  const totalProfit = profitPerShare * (portfolio?.shares || 0);
   const borderColor =
     signal.signal_type === 'BUY' ? 'var(--buy)' :
     signal.signal_type === 'SELL' ? 'var(--sell)' : 'var(--hold)';
@@ -28,7 +34,14 @@ export default function SignalPanel({ signal, price, livePrice, priceRefreshing,
           )}
         </div>
       )}
-      <div style={{ fontSize: '14px', lineHeight: '1.6' }}>{signal.recommendation}</div>
+      <div style={{ fontSize: '14px', lineHeight: '1.6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+        <span>{signal.recommendation}</span>
+        {avgCost > 0 && (
+          <span className={totalProfit >= 0 ? 'price-up' : 'price-down'} style={{ fontWeight: 600 }}>
+            {totalProfit >= 0 ? '+' : ''}{fmtUSD(totalProfit)} ({profitPct >= 0 ? '+' : ''}{fmtPct(profitPct)})
+          </span>
+        )}
+      </div>
       <div style={{ marginTop: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
         <div>
           <span style={{ color: 'var(--text-muted)' }}>매수까지: </span>

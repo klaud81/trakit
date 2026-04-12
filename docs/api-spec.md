@@ -90,6 +90,7 @@ Base URL: `https://trakit.stock-snow.com/api` (운영) 또는 `http://localhost:
     "target_value": 20971.38,
     "min_band": 17825.67,
     "max_band": 24117.09,
+    "avg_cost": 39.03,
     "g": 12
   }
 ]
