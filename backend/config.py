@@ -53,6 +53,12 @@ _KIS_MOCK_URL = "https://openapivts.koreainvestment.com:29443"
 _KIS_REAL_URL = "https://openapi.koreainvestment.com:9443"
 KIS_BASE_URL = os.getenv("KIS_BASE_URL", _KIS_MOCK_URL if KIS_MOCK else _KIS_REAL_URL)
 
+# Discord
+DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
+DISCORD_APP_ID = os.getenv("DISCORD_APP_ID", "")
+DISCORD_PUBLIC_KEY = os.getenv("DISCORD_PUBLIC_KEY", "")
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+
 # API 설정
 API_HOST = os.getenv("TRAKIT_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("TRAKIT_PORT", "8000"))

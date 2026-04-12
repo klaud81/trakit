@@ -1,5 +1,6 @@
 """API 엔드포인트"""
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from typing import Optional
 
 from api.schemas import BacktestRequest, HealthResponse
@@ -14,6 +15,8 @@ from services.backtesting_service import run_backtest
 from services.exchange_rate_service import get_exchange_rate
 from core.data_loader import refresh_base_sheet
 from core.signal_calculator import generate_signal
+from services.discord_service import notify_signal, notify_refresh, send_discord
+from services.discord_bot import verify_signature, handle_command, register_slash_commands, PING, APPLICATION_COMMAND, PONG, CHANNEL_MESSAGE
 
 router = APIRouter(prefix="/api")
 
@@ -138,7 +141,18 @@ async def refresh():
     try:
         df = refresh_base_sheet()
         valid = len(df[df["price"].notna()])
+        notify_refresh(len(df), valid)
         return {"status": "ok", "rows": len(df), "valid_rows": valid}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/notify")
+async def notify(message: str = Query(..., description="Discord 알림 메시지")):
+    """Discord 웹훅 알림 전송"""
+    try:
+        ok = send_discord(message)
+        return {"status": "ok" if ok else "failed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -150,3 +164,29 @@ async def exchange_rate():
         return get_exchange_rate()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/discord/interactions")
+async def discord_interactions(request: Request):
+    """Discord 슬래시 명령어 처리 (Interactions Endpoint)"""
+    body = await request.body()
+    signature = request.headers.get("X-Signature-Ed25519", "")
+    timestamp = request.headers.get("X-Signature-Timestamp", "")
+
+    if not verify_signature(body, signature, timestamp):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    data = await request.json()
+
+    if data.get("type") == PING:
+        return JSONResponse({"type": PONG})
+
+    if data.get("type") == APPLICATION_COMMAND:
+        command_name = data["data"]["name"]
+        message = handle_command(command_name)
+        return JSONResponse({
+            "type": CHANNEL_MESSAGE,
+            "data": {"content": message},
+        })
+
+    return JSONResponse({"type": PONG})

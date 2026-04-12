@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
-from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY
+from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY, DISCORD_BOT_TOKEN
 
 from datetime import datetime, timezone, timedelta
 
@@ -53,6 +53,12 @@ app.include_router(router)
 _mode = "모의투자(Mock)" if KIS_MOCK else "실전투자(Real)"
 _key = KIS_APP_KEY[:10] + "..." if KIS_APP_KEY else "미설정"
 logger.info(f"🚀 Trakit API 시작 — KIS: {_mode} | URL: {KIS_BASE_URL} | Key: {_key}")
+
+# Discord 슬래시 명령어 등록
+if DISCORD_BOT_TOKEN:
+    from services.discord_bot import register_slash_commands
+    register_slash_commands()
+    logger.info("🤖 Discord Bot 연동 활성화")
 
 
 @app.get("/")
