@@ -169,9 +169,9 @@ async def exchange_rate():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/visit")
+@router.get("/visit")
 async def visit():
-    """방문 기록"""
+    """방문 기록 + 통계 반환"""
     try:
         record_visit()
         return get_visitor_stats()
