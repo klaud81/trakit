@@ -49,6 +49,7 @@ export default function App() {
   const [history, setHistory] = useState(null);
   const [remaining, setRemaining] = useState(null);
   const [exchangeRate, setExchangeRate] = useState(null);
+  const [visitors, setVisitors] = useState(null);
   const [loading, setLoading] = useState(true);
   const [priceRefreshing, setPriceRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -86,6 +87,9 @@ export default function App() {
       setHistory(normalized);
       setRemaining(remainData);
       setExchangeRate(rateData);
+
+      // 방문 기록
+      fetchApi('/visit').then((v) => { if (v) setVisitors(v); });
 
       if (normalized && normalized.length > 0) {
         setAllWeeks(normalized);
@@ -289,6 +293,15 @@ export default function App() {
             복사
           </button>
         </div>
+        {visitors && (
+          <div className="visitor-bar">
+            <span>오늘 {visitors.today}</span>
+            <span>·</span>
+            <span>월간 {visitors.month}</span>
+            <span>·</span>
+            <span>누적 {visitors.total}</span>
+          </div>
+        )}
       </div>
     </div>
   );

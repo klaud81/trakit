@@ -14,6 +14,7 @@ from services.trade_calculator import get_trade_points, get_saved_trade_points, 
 from services.backtesting_service import run_backtest
 from services.exchange_rate_service import get_exchange_rate
 from core.data_loader import refresh_base_sheet
+from services.visitor_service import record_visit, get_visitor_stats
 from core.signal_calculator import generate_signal
 from services.discord_service import notify_signal, notify_refresh, send_discord
 from services.discord_bot import verify_signature, handle_command, register_slash_commands, PING, APPLICATION_COMMAND, PONG, CHANNEL_MESSAGE
@@ -164,6 +165,25 @@ async def exchange_rate():
     """USD/KRW 환율 (하루 1회 갱신)"""
     try:
         return get_exchange_rate()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/visit")
+async def visit():
+    """방문 기록"""
+    try:
+        record_visit()
+        return get_visitor_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/visitors")
+async def visitors():
+    """방문자 통계 조회"""
+    try:
+        return get_visitor_stats()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
