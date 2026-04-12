@@ -43,11 +43,13 @@ def register_slash_commands():
         },
         {
             "name": "signal",
-            "description": "현재 매매 시그널 조회",
+            "description": "매매 시그널 조회 (오프셋: -1 이전 주차)",
+            "options": [{"name": "offset", "description": "주차 오프셋 (0=현재, -1=이전, -2=2주전...)", "type": 4, "required": False}],
         },
         {
             "name": "portfolio",
-            "description": "포트폴리오 현황 조회",
+            "description": "포트폴리오 현황 조회 (오프셋: -1 이전 주차)",
+            "options": [{"name": "offset", "description": "주차 오프셋 (0=현재, -1=이전, -2=2주전...)", "type": 4, "required": False}],
         },
         {
             "name": "rate",
@@ -73,7 +75,19 @@ def register_slash_commands():
             logger.warning(f"Discord 명령어 등록 에러: {e}")
 
 
-def handle_command(command_name: str) -> str:
+def _get_week_by_offset(offset: int) -> dict:
+    """히스토리에서 오프셋 기준 주차 데이터 조회 (0=마지막, -1=이전)"""
+    from services.portfolio_service import get_portfolio_history
+    history = get_portfolio_history()
+    if not history:
+        return None
+    idx = len(history) - 1 + offset
+    if idx < 0 or idx >= len(history):
+        return None
+    return history[idx]
+
+
+def handle_command(command_name: str, options: dict = None) -> str:
     """슬래시 명령어 처리 → 응답 메시지 생성"""
     try:
         if command_name == "price":
@@ -88,32 +102,74 @@ def handle_command(command_name: str) -> str:
             return msg
 
         elif command_name == "signal":
-            from services.portfolio_service import get_current_portfolio
-            from services.price_service import get_current_price
-            from core.signal_calculator import generate_signal
-            live = get_current_price()
-            current_price = live["price"] if live["price"] > 0 else None
-            portfolio = get_current_portfolio(current_price=current_price)
-            signal = generate_signal(portfolio, current_price=current_price)
-            emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(signal["signal_type"], "⚪")
-            msg = f"{emoji} **{signal['signal_type']}** | TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%)\n"
-            msg += f"{signal['recommendation']}\n"
-            if portfolio.get("profit") is not None:
-                msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)"
-            return msg
+            offset = (options or {}).get("offset", 0)
+            if offset and offset < 0:
+                # 이전 주차 조회
+                week = _get_week_by_offset(offset)
+                if not week:
+                    return f"❌ 오프셋 {offset}에 해당하는 주차 데이터가 없습니다."
+                from core.signal_calculator import generate_signal
+                valuation = week["valuation"]
+                min_b = week["min_band"]
+                max_b = week["max_band"]
+                st = "BUY" if valuation < min_b else "SELL" if valuation > max_b else "HOLD"
+                band_range = max_b - min_b
+                pos = int((valuation - min_b) / band_range * 100) if band_range > 0 else 50
+                emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(st, "⚪")
+                msg = f"{emoji} **{st}** | {week['week_num']}주차 ({week.get('date_range', '')})\n"
+                msg += f"가격: ${week['price']:.2f} | 밴드 내 {pos}% 위치\n"
+                avg_cost = week.get("avg_cost")
+                if avg_cost and avg_cost > 0:
+                    profit = (week["price"] - avg_cost) * week["shares"]
+                    profit_pct = (week["price"] - avg_cost) / avg_cost * 100
+                    msg += f"수익률: {profit:+,.0f}$ ({profit_pct:+.2f}%)"
+                return msg
+            else:
+                # 현재 (실시간)
+                from services.portfolio_service import get_current_portfolio
+                from services.price_service import get_current_price
+                from core.signal_calculator import generate_signal
+                live = get_current_price()
+                current_price = live["price"] if live["price"] > 0 else None
+                portfolio = get_current_portfolio(current_price=current_price)
+                signal = generate_signal(portfolio, current_price=current_price)
+                emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(signal["signal_type"], "⚪")
+                msg = f"{emoji} **{signal['signal_type']}** | TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%)\n"
+                msg += f"{signal['recommendation']}\n"
+                if portfolio.get("profit") is not None:
+                    msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)"
+                return msg
 
         elif command_name == "portfolio":
-            from services.portfolio_service import get_current_portfolio
-            from services.price_service import get_current_price
-            live = get_current_price()
-            p = get_current_portfolio(current_price=live["price"] if live["price"] > 0 else None)
-            msg = f"📊 **포트폴리오** ({p['week_num']}주차)\n"
-            msg += f"평가금: ${p['valuation']:,.2f}\n"
-            msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}\n"
-            msg += f"Pool: ${p['pool']:,.2f}\n"
-            msg += f"총 자산: **${p['total_value']:,.2f}**\n"
-            msg += f"목표 달성률: {p['goal_progress']:.2f}%"
-            return msg
+            offset = (options or {}).get("offset", 0)
+            if offset and offset < 0:
+                week = _get_week_by_offset(offset)
+                if not week:
+                    return f"❌ 오프셋 {offset}에 해당하는 주차 데이터가 없습니다."
+                valuation = week["valuation"]
+                pool = week["pool"]
+                total = valuation + pool
+                msg = f"📊 **포트폴리오** ({week['week_num']}주차 · {week.get('date_range', '')})\n"
+                msg += f"가격: ${week['price']:.2f} | 평가금: ${valuation:,.2f}\n"
+                msg += f"보유: {week['shares']}주"
+                avg_cost = week.get("avg_cost")
+                if avg_cost:
+                    msg += f" · 평단 ${avg_cost:.2f}"
+                msg += f"\nPool: ${pool:,.2f}\n"
+                msg += f"총 자산: **${total:,.2f}**"
+                return msg
+            else:
+                from services.portfolio_service import get_current_portfolio
+                from services.price_service import get_current_price
+                live = get_current_price()
+                p = get_current_portfolio(current_price=live["price"] if live["price"] > 0 else None)
+                msg = f"📊 **포트폴리오** ({p['week_num']}주차)\n"
+                msg += f"평가금: ${p['valuation']:,.2f}\n"
+                msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}\n"
+                msg += f"Pool: ${p['pool']:,.2f}\n"
+                msg += f"총 자산: **${p['total_value']:,.2f}**\n"
+                msg += f"목표 달성률: {p['goal_progress']:.2f}%"
+                return msg
 
         elif command_name == "rate":
             from services.exchange_rate_service import get_exchange_rate

@@ -185,7 +185,9 @@ async def discord_interactions(request: Request):
 
     if data.get("type") == APPLICATION_COMMAND:
         command_name = data["data"]["name"]
-        message = handle_command(command_name)
+        raw_options = data["data"].get("options", [])
+        options = {opt["name"]: opt["value"] for opt in raw_options}
+        message = handle_command(command_name, options)
         return JSONResponse({
             "type": CHANNEL_MESSAGE,
             "data": {"content": message},
