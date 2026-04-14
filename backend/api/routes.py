@@ -29,8 +29,12 @@ async def health():
 
 @router.get("/portfolio")
 async def portfolio(price: Optional[float] = Query(None, description="실시간 가격 오버라이드")):
-    """현재 포트폴리오 상태"""
+    """현재 포트폴리오 상태 (실시간 가격 자동 적용)"""
     try:
+        if price is None:
+            live = get_current_price()
+            if live["price"] > 0:
+                price = live["price"]
         return get_current_portfolio(current_price=price)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -47,8 +51,12 @@ async def portfolio_history():
 
 @router.get("/signals")
 async def signals(price: Optional[float] = Query(None)):
-    """현재 매매 시그널"""
+    """현재 매매 시그널 (실시간 가격 자동 적용)"""
     try:
+        if price is None:
+            live = get_current_price()
+            if live["price"] > 0:
+                price = live["price"]
         portfolio = get_current_portfolio(current_price=price)
         signal = generate_signal(portfolio, current_price=price)
         signal["profit"] = portfolio.get("profit")
