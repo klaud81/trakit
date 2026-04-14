@@ -165,3 +165,76 @@ location /ws {
 ### 의존성
 - `websockets>=12.0` (KIS WebSocket 클라이언트)
 - FastAPI 내장 WebSocket (추가 패키지 불필요)
+
+---
+
+## MCP 서버 연동 (Claude Code)
+
+### 개요
+Trakit API를 MCP(Model Context Protocol) 서버로 제공하여 Claude Code에서 대화 중 직접 데이터를 조회/분석.
+
+### MCP 도구 목록
+
+| 도구 | API | 설명 |
+|------|-----|------|
+| `trakit_price` | `/api/price` | TQQQ 실시간 가격 |
+| `trakit_quote` | `/api/quote?symbol=` | 개별 티커 가격 |
+| `trakit_signal` | `/api/signals` | 매매 시그널 + 수익률 |
+| `trakit_portfolio` | `/api/portfolio` | 포트폴리오 현황 |
+| `trakit_exchange_rate` | `/api/exchange-rate` | USD/KRW 환율 |
+| `trakit_watchlist` | `/api/watchlist` | 관심 티커 목록 |
+| `trakit_refresh` | `/api/refresh` | 데이터 강제 갱신 |
+| `trakit_visitors` | `/api/visitors` | 방문자 통계 |
+
+### 활용 시나리오
+- "오늘 포트폴리오 상황 분석해줘" → portfolio + signal + price 조합 분석
+- "NVDA, TSLA 가격 비교해줘" → quote 2회 호출 → 비교 테이블
+- "매수 타이밍인지 판단해줘" → signal + price + 밴드 위치 종합 판단
+- "환율 고려한 원화 수익률" → portfolio + exchange_rate 조합
+- "데이터 갱신하고 현황 보여줘" → refresh → portfolio → signal 순차 호출
+
+### 구현 방식
+- stdio 기반 MCP 서버 (`backend/mcp_server.py`)
+- trakit 운영 API(`https://trakit.stock-snow.com/api`)를 HTTP로 호출
+- `~/.claude/settings.json`에 MCP 서버 등록
+
+```json
+{
+  "mcpServers": {
+    "trakit": {
+      "command": "python3",
+      "args": ["/path/to/trakit/backend/mcp_server.py"]
+    }
+  }
+}
+```
+
+### 구현 단계
+
+1. **Phase 1: 기본 MCP 서버**
+   - 읽기 전용 도구 (price, signal, portfolio, quote, rate)
+   - stdio 방식, 로컬 실행
+
+2. **Phase 2: 분석 도구 확장**
+   - 히스토리 조회 + 추세 분석 도구
+   - 밴드 위치 기반 매수/매도 추천 도구
+   - 멀티 티커 비교 도구
+
+3. **Phase 3: 액션 도구**
+   - 데이터 갱신 (refresh)
+   - Discord 알림 전송 (notify)
+   - 예약주문 연동 (미래)
+
+---
+
+## 코스피 야간선물 실시간 조회
+
+### 현황
+- Yahoo Finance: 야간선물 심볼 없음 (정규장 종가만)
+- 네이버 금융: API 차단
+- KIS API: 선물 시세 권한 또는 장 외 시간 문제로 조회 안 됨
+
+### 확인 필요
+- KIS Developers에서 국내선물옵션 시세 서비스 신청 여부
+- 야간선물 거래 시간(KST 18:00~05:00)에 KIS API 재테스트
+- 종목코드: `101W2506` (야간선물 근월물, 월마다 변경)
