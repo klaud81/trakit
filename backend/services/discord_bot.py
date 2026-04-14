@@ -56,6 +56,15 @@ def register_slash_commands():
             "description": "USD/KRW 환율 조회",
         },
         {
+            "name": "quote",
+            "description": "티커 실시간 가격 조회",
+            "options": [{"name": "symbol", "description": "티커 심볼 (예: NVDA, TSLA, SPY)", "type": 3, "required": True}],
+        },
+        {
+            "name": "watchlist",
+            "description": "관심 티커 목록 조회",
+        },
+        {
             "name": "refresh",
             "description": "Google Sheets 데이터 갱신",
         },
@@ -172,6 +181,26 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 msg += f"총 자산: **${p['total_value']:,.2f}**\n"
                 msg += f"목표 달성률: {p['goal_progress']:.2f}%"
                 return msg
+
+        elif command_name == "quote":
+            symbol = (options or {}).get("symbol", "TQQQ").upper()
+            from services.price_service import get_current_price
+            p = get_current_price(symbol=symbol)
+            if p["price"] == 0:
+                return f"❌ {symbol}: 가격 조회 실패"
+            arrow = "📈" if p["change"] >= 0 else "📉"
+            msg = f"{arrow} **{symbol} ${p['price']:.2f}**\n"
+            msg += f"변동: {p['change']:+.2f} ({p['change_pct']:+.2f}%)\n"
+            msg += f"전일종가: ${p['prev_close']}"
+            if p.get("day_high"):
+                msg += f" | 고가: ${p['day_high']} | 저가: ${p['day_low']}"
+            return msg
+
+        elif command_name == "watchlist":
+            from config import WATCHLIST
+            msg = "📋 **관심 티커 목록**\n"
+            msg += " · ".join(WATCHLIST)
+            return msg
 
         elif command_name == "rate":
             from services.exchange_rate_service import get_exchange_rate

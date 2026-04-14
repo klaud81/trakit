@@ -168,6 +168,22 @@ async def notify(message: str = Query(..., description="Discord 알림 메시지
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/quote")
+async def quote(symbol: str = Query(..., description="티커 심볼 (예: NVDA, TSLA)")):
+    """개별 티커 실시간 가격 조회"""
+    try:
+        return get_current_price(symbol=symbol.upper())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/watchlist")
+async def watchlist():
+    """관심 티커 목록 반환"""
+    from config import WATCHLIST
+    return {"symbols": WATCHLIST}
+
+
 @router.get("/exchange-rate")
 async def exchange_rate():
     """USD/KRW 환율 (하루 1회 갱신)"""
