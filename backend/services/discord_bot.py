@@ -77,15 +77,16 @@ def register_slash_commands():
     url = f"https://discord.com/api/v10/applications/{DISCORD_APP_ID}/commands"
     headers = {"Authorization": f"Bot {DISCORD_BOT_TOKEN}"}
 
-    for cmd in commands:
-        try:
-            resp = requests.post(url, json=cmd, headers=headers, timeout=10)
-            if resp.status_code in (200, 201):
-                logger.info(f"📎 Discord 명령어 등록: /{cmd['name']}")
-            else:
-                logger.warning(f"Discord 명령어 등록 실패: /{cmd['name']} ({resp.status_code})")
-        except Exception as e:
-            logger.warning(f"Discord 명령어 등록 에러: {e}")
+    # Bulk overwrite: 한 번의 PUT 요청으로 전체 명령어를 원자적으로 갱신 (rate limit 회피)
+    try:
+        resp = requests.put(url, json=commands, headers=headers, timeout=15)
+        if resp.status_code in (200, 201):
+            names = ", ".join(f"/{c['name']}" for c in commands)
+            logger.info(f"📎 Discord 명령어 등록 ({len(commands)}개): {names}")
+        else:
+            logger.warning(f"Discord 명령어 등록 실패: {resp.status_code} {resp.text[:200]}")
+    except Exception as e:
+        logger.warning(f"Discord 명령어 등록 에러: {e}")
 
 
 def _get_week_by_offset(offset: int) -> dict:
