@@ -11,8 +11,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_price_cache: Optional[dict] = None
-_cache_time: Optional[datetime] = None
+_price_cache: dict[str, dict] = {}
+_cache_time: dict[str, datetime] = {}
 CACHE_TTL_SECONDS = 30  # 30초 캐시
 
 
@@ -192,22 +192,24 @@ def _fetch_yfinance(symbol: str) -> Optional[dict]:
 
 
 def get_current_price(symbol: str = SYMBOL) -> dict:
-    """실시간 TQQQ 가격 조회
+    """실시간 가격 조회 (심볼별 캐시)
 
     캐시 정책:
     - 캐시 있고 30초 이내 → 캐시 반환
     - KST 21~06시(트레이딩 시간) + 30초 초과 → 재조회
     - KST 06~21시(비트레이딩) → 캐시 반환 (없으면 1회 조회)
     """
-    global _price_cache, _cache_time
+    symbol = symbol.upper()
+    cached = _price_cache.get(symbol)
+    cached_at = _cache_time.get(symbol)
 
-    if _price_cache and _cache_time:
-        elapsed = (datetime.now() - _cache_time).total_seconds()
+    if cached and cached_at:
+        elapsed = (datetime.now() - cached_at).total_seconds()
         if elapsed < CACHE_TTL_SECONDS:
-            return _price_cache
+            return cached
         # 트레이딩 시간이 아니면 캐시 반환
         if not _is_trading_hours():
-            return _price_cache
+            return cached
 
     # 순서대로 시도: KIS → yfinance → Yahoo API v8 → Yahoo quote
     raw = _fetch_kis(symbol)
@@ -240,14 +242,14 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
             "market_open": _is_market_open(),
         }
 
-        _price_cache = result
-        _cache_time = datetime.now()
-        logger.info(f"💰 가격 캐시 저장: ${price} (변동: {change:+.2f}, {change_pct:+.2f}%) prev_close=${prev_close}")
+        _price_cache[symbol] = result
+        _cache_time[symbol] = datetime.now()
+        logger.info(f"💰 가격 캐시 저장 [{symbol}]: ${price} (변동: {change:+.2f}, {change_pct:+.2f}%) prev_close=${prev_close}")
         return result
 
     # 모든 소스 실패
-    if _price_cache:
-        return _price_cache
+    if cached:
+        return cached
 
     return {
         "symbol": symbol,
