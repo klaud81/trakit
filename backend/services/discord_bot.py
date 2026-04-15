@@ -65,7 +65,7 @@ def register_slash_commands():
             "options": [{"name": "symbol", "description": "티커 심볼 (예: NVDA, TSLA, SPY)", "type": 3, "required": True}],
         },
         {
-            "name": "watchlist",
+            "name": "watch",
             "description": "관심 티커 목록 조회",
         },
         {
@@ -111,7 +111,7 @@ def _build_help_text() -> str:
         "`/signal [offset]` — 매매 시그널 (BUY/SELL/HOLD). `offset` 미지정 시 현재, `-1` 이전 주차, `-2` 2주 전...\n"
         "`/portfolio [offset]` — 포트폴리오 현황 (평가금·Pool·총자산). `offset` 규칙은 `/signal`과 동일\n"
         "`/quote <symbol>` — 개별 티커 실시간 가격 (예: `/quote symbol:NVDA`)\n"
-        f"`/watchlist` — 관심 티커 목록 [{tickers}]\n"
+        f"`/watch` — 관심 티커 목록 [{tickers}]\n"
         "`/rate` — USD/KRW 환율"
     )
 
@@ -219,7 +219,7 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 msg += f" | 고가: ${p['day_high']} | 저가: ${p['day_low']}"
             return msg
 
-        elif command_name == "watchlist":
+        elif command_name == "watch":
             from config import WATCHLIST
             msg = "📋 **관심 티커 목록**\n"
             msg += " · ".join(WATCHLIST)
