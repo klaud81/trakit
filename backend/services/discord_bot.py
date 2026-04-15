@@ -38,6 +38,10 @@ def register_slash_commands():
 
     commands = [
         {
+            "name": "help",
+            "description": "전체 명령어 사용법 안내",
+        },
+        {
             "name": "price",
             "description": "TQQQ 현재 가격 조회",
         },
@@ -96,9 +100,24 @@ def _get_week_by_offset(offset: int) -> dict:
     return history[idx]
 
 
+HELP_TEXT = (
+    "📖 **Trakit 명령어 도움말**\n"
+    "`/help` — 전체 명령어 사용법 안내\n"
+    "`/price` — TQQQ 현재 실시간 가격\n"
+    "`/signal [offset]` — 매매 시그널 (BUY/SELL/HOLD). `offset` 미지정 시 현재, `-1` 이전 주차, `-2` 2주 전...\n"
+    "`/portfolio [offset]` — 포트폴리오 현황 (평가금·Pool·총자산). `offset` 규칙은 `/signal`과 동일\n"
+    "`/quote <symbol>` — 개별 티커 실시간 가격 (예: `/quote symbol:NVDA`)\n"
+    "`/watchlist` — 관심 티커 목록\n"
+    "`/rate` — USD/KRW 환율"
+)
+
+
 def handle_command(command_name: str, options: dict = None) -> str:
     """슬래시 명령어 처리 → 응답 메시지 생성"""
     try:
+        if command_name == "help":
+            return HELP_TEXT
+
         if command_name == "price":
             from services.price_service import get_current_price
             p = get_current_price()
