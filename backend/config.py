@@ -24,7 +24,7 @@ USE_GOOGLE_SHEETS = True  # True면 Google Sheets에서 데이터 로딩
 
 # 투자 설정
 SYMBOL = "TQQQ"
-WATCHLIST = ["TQQQ", "QQQ", "SQQQ", "SPY", "SOXL", "SOXS", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "GOOG", "META"]
+WATCHLIST = ["TQQQ", "KORU", "QQQ", "SQQQ", "SPY", "SOXL", "SOXS", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "GOOG", "META"]
 CONTRIBUTION_PER_CYCLE = 200  # 2주마다 $200 적립
 REBALANCE_INTERVAL_WEEKS = 2
 GOAL_WEEK = 560  # 목표 주차
