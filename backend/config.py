@@ -46,6 +46,10 @@ EXTRA_QUANTITY = 100  # 추가수량
 # 수수료
 DEFAULT_FEE_RATE = 0.003  # 0.3%
 
+# 실시간 가격 조회 정책
+# True(기본) → 시간대 무관 항상 갱신, False → KST 21~06시에만 갱신 (장외 캐시 고정)
+PRICE_FETCH_ALWAYS = os.getenv("PRICE_FETCH_ALWAYS", "true").lower() == "true"
+
 # 한국투자증권 API
 KIS_APP_KEY = os.getenv("KIS_APP_KEY", "")
 KIS_APP_SECRET = os.getenv("KIS_APP_SECRET", "")

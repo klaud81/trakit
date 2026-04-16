@@ -6,7 +6,7 @@ import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from config import SYMBOL
+from config import SYMBOL, PRICE_FETCH_ALWAYS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -207,8 +207,8 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
         elapsed = (datetime.now() - cached_at).total_seconds()
         if elapsed < CACHE_TTL_SECONDS:
             return cached
-        # 트레이딩 시간이 아니면 캐시 반환
-        if not _is_trading_hours():
+        # PRICE_FETCH_ALWAYS=False일 때만 장외시간 캐시 고정
+        if not PRICE_FETCH_ALWAYS and not _is_trading_hours():
             return cached
 
     # 순서대로 시도: KIS → yfinance → Yahoo API v8 → Yahoo quote
