@@ -4,6 +4,7 @@ export default function SignalPanel({ signal, livePrice, priceRefreshing, tradeP
   if (!signal) return null;
   const buyPrice = tradePoints?.buy_table?.rows?.[0]?.price || 0;
   const sellPrice = tradePoints?.sell_table?.rows?.[0]?.price || 0;
+  const unitSize = tradePoints?.unit_size;
   const profit = signal.profit;
   const profitPct = signal.profit_pct;
   const borderColor =
@@ -42,10 +43,12 @@ export default function SignalPanel({ signal, livePrice, priceRefreshing, tradeP
         <div>
           <span style={{ color: 'var(--text-muted)' }}>매수까지: </span>
           <span style={{ color: 'var(--buy)' }}>{fmtUSD(buyPrice)}/주</span>
+          {unitSize && <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>({unitSize}주)</span>}
         </div>
         <div>
           <span style={{ color: 'var(--text-muted)' }}>매도까지: </span>
           <span style={{ color: 'var(--sell)' }}>{fmtUSD(sellPrice)}/주</span>
+          {unitSize && <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>({unitSize}주)</span>}
         </div>
       </div>
     </div>

@@ -136,6 +136,7 @@ def calculate_buy_points(
     remaining_pool = pool
     half_pool = pool / 2
     shares = current_shares
+    cumulative = 0.0
 
     while remaining_pool > half_pool:
         buy_price = round(min_band / shares, 2)
@@ -144,11 +145,13 @@ def calculate_buy_points(
             break
         remaining_pool = round(remaining_pool - cost, 2)
         shares += unit_size
+        cumulative = round(cumulative + cost, 2)
         points.append({
             "action": "BUY",
             "shares_after": shares,
             "price": buy_price,
             "amount": cost,
+            "cumulative": cumulative,
             "pool_after": remaining_pool,
         })
     return points
@@ -169,6 +172,7 @@ def calculate_sell_points(
     points = []
     current_pool = pool
     shares = current_shares
+    cumulative = 0.0
 
     for i in range(max_points):
         sell_price = round(max_band / shares, 2)
@@ -177,11 +181,13 @@ def calculate_sell_points(
         shares -= unit_size
         if shares <= 0:
             break
+        cumulative = round(cumulative + proceeds, 2)
         points.append({
             "action": "SELL",
             "shares_after": shares,
             "price": sell_price,
             "amount": proceeds,
+            "cumulative": cumulative,
             "pool_after": current_pool,
         })
     return points

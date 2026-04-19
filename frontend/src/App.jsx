@@ -13,7 +13,7 @@ import ValueLineChart from './components/ValueLineChart';
 /** 매수 포인트 계산 — pool이 초기값의 1/2 이하가 되면 중단 */
 function calcBuyPoints(shares, minBand, pool, unit) {
   const pts = [];
-  let rem = pool, s = shares;
+  let rem = pool, s = shares, cum = 0;
   const halfPool = pool / 2;
   while (rem > halfPool) {
     const price = +(minBand / s).toFixed(2);
@@ -21,7 +21,8 @@ function calcBuyPoints(shares, minBand, pool, unit) {
     if (rem < cost) break;
     rem = +(rem - cost).toFixed(2);
     s += unit;
-    pts.push({ action: 'BUY', shares_after: s, price, amount: cost, pool_after: rem });
+    cum = +(cum + cost).toFixed(2);
+    pts.push({ action: 'BUY', shares_after: s, price, amount: cost, cumulative: cum, pool_after: rem });
   }
   return pts;
 }
@@ -29,14 +30,15 @@ function calcBuyPoints(shares, minBand, pool, unit) {
 /** 매도 포인트 계산 — 매수 횟수와 동일하게 반복 */
 function calcSellPoints(shares, maxBand, pool, unit = 10, maxPts = 10) {
   const pts = [];
-  let cur = pool, s = shares;
+  let cur = pool, s = shares, cum = 0;
   for (let i = 0; i < maxPts; i++) {
     const price = +(maxBand / s).toFixed(2);
     const proceeds = +(price * unit).toFixed(2);
     cur = +(cur + proceeds).toFixed(2);
     s -= unit;
     if (s <= 0) break;
-    pts.push({ action: 'SELL', shares_after: s, price, amount: proceeds, pool_after: cur });
+    cum = +(cum + proceeds).toFixed(2);
+    pts.push({ action: 'SELL', shares_after: s, price, amount: proceeds, cumulative: cum, pool_after: cur });
   }
   return pts;
 }

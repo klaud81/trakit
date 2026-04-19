@@ -18,6 +18,7 @@ export default function TradeTable({ title, table, type, unitSize }) {
             <th>잔여갯수</th>
             <th>{type === 'buy' ? '매수점' : '매도점'}</th>
             <th>pool</th>
+            <th>누적</th>
           </tr>
         </thead>
         <tbody>
@@ -27,6 +28,7 @@ export default function TradeTable({ title, table, type, unitSize }) {
               <td>{fmt(header.shares, 0)}주</td>
               <td>—</td>
               <td>{fmtUSD(header.pool)}</td>
+              <td>—</td>
             </tr>
           )}
           {rows && rows.map((p, i) => (
@@ -35,10 +37,11 @@ export default function TradeTable({ title, table, type, unitSize }) {
               <td>{fmt(p.shares_after, 0)}주</td>
               <td style={{ color }}>{fmtUSD(p.price)}</td>
               <td style={{ color: 'var(--text-muted)' }}>{fmtUSD(p.pool_after)}</td>
+              <td style={{ color, fontSize: '11px' }}>{type === 'sell' ? '+' : '-'}{fmtUSD(p.cumulative)}</td>
             </tr>
           ))}
           {(!rows || rows.length === 0) && !header && (
-            <tr><td colSpan="4" style={{ color: 'var(--text-muted)', textAlign: 'center' }}>데이터 없음</td></tr>
+            <tr><td colSpan="5" style={{ color: 'var(--text-muted)', textAlign: 'center' }}>데이터 없음</td></tr>
           )}
         </tbody>
       </table>
