@@ -6,7 +6,6 @@ export default function PortfolioCard({ portfolio, signal, prevWeek, exchangeRat
   const rate = exchangeRate?.rate || 1400;
   const valKrw = Math.round(portfolio.valuation * rate);
 
-  const sharesDiff = prevWeek ? portfolio.shares - (prevWeek.shares || 0) : null;
 
   return (
     <div className="card">
@@ -22,9 +21,9 @@ export default function PortfolioCard({ portfolio, signal, prevWeek, exchangeRat
       </div>
       <div className="portfolio-shares">
         {fmt(portfolio.shares, 0)}주 보유 · 평단 {fmtUSD(portfolio.avg_cost)}
-        {sharesDiff !== null && sharesDiff !== 0 && (
-          <span className={sharesDiff > 0 ? 'price-up' : 'price-down'} style={{ marginLeft: '8px', fontSize: '12px' }}>
-            ({sharesDiff > 0 ? '+' : ''}{fmt(sharesDiff, 0)}주)
+        {portfolio.trade_shares != null && portfolio.trade_shares !== 0 && (
+          <span className={portfolio.trade_shares > 0 ? 'price-up' : 'price-down'} style={{ marginLeft: '8px', fontSize: '12px' }}>
+            ({portfolio.trade_shares > 0 ? '매수' : '매도'} {Math.abs(portfolio.trade_shares)}주 · {fmtUSD(portfolio.trade_amount)})
           </span>
         )}
         <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>

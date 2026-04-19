@@ -131,6 +131,14 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
     profit = round((price - avg_cost) * shares, 2) if avg_cost and avg_cost > 0 else None
     profit_pct = round((price - avg_cost) / avg_cost * 100, 2) if avg_cost and avg_cost > 0 else None
 
+    # 매매 정보: 이전 주차 대비 주식 변동
+    trade_amount = _safe_float(last["trade_amount"])
+    trade_shares = None
+    if len(valid) >= 2:
+        prev = valid.iloc[-2]
+        prev_shares = _safe_int(prev["shares"], 0)
+        trade_shares = shares - prev_shares  # 양수=매수, 음수=매도
+
     return {
         "week_num": _week_str(last["week_num"]),
         "date_range": str(last["date_range"]) if pd.notna(last["date_range"]) else None,
@@ -147,6 +155,8 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
         "goal_progress": round(goal_progress, 2),
         "profit": profit,
         "profit_pct": profit_pct,
+        "trade_shares": trade_shares,
+        "trade_amount": round(trade_amount, 2) if trade_amount else None,
         "exchange_rate": exchange["rate"],
         "updated_at": datetime.now().isoformat(),
     }

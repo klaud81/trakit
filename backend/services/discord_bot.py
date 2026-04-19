@@ -199,7 +199,13 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 p = get_current_portfolio(current_price=live["price"] if live["price"] > 0 else None)
                 msg = f"📊 **포트폴리오** ({p['week_num']}주차 · {p.get('date_range', '')})\n"
                 msg += f"평가금: ${p['valuation']:,.2f}\n"
-                msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}\n"
+                trade_shares = p.get("trade_shares")
+                trade_info = ""
+                if trade_shares and trade_shares != 0:
+                    label = "매도" if trade_shares < 0 else "매수"
+                    trade_amt = p.get("trade_amount", 0) or 0
+                    trade_info = f" ({label} {abs(trade_shares)}주 · ${trade_amt:,.2f})"
+                msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}{trade_info}\n"
                 msg += f"Pool: ${p['pool']:,.2f}\n"
                 msg += f"총 자산: **${p['total_value']:,.2f}**\n"
                 msg += f"목표 달성률: {p['goal_progress']:.2f}%"

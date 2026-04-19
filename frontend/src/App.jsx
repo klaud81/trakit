@@ -157,6 +157,10 @@ export default function App() {
     const total = valuation + pool;
     const goalPct = (total / (1_000_000_000 / 1400)) * 100;
 
+    // 매매 정보: 이전 주차 대비 주식 변동
+    const prevWeek = newIdx > 0 ? allWeeks[newIdx - 1] : null;
+    const tradeShares = prevWeek ? week.shares - prevWeek.shares : null;
+
     setPortfolio((prev) => ({
       ...prev,
       week_num: week.week_num, date_range: week.date_range || '',
@@ -166,6 +170,8 @@ export default function App() {
       max_band: week.max_band || prev?.max_band,
       growth_stage: week.g || prev?.growth_stage,
       total_value: total, goal_progress: Math.round(goalPct * 100) / 100,
+      trade_shares: tradeShares,
+      trade_amount: isLastWeek ? prev?.trade_amount : (tradeShares ? Math.abs(tradeShares * week.price) : null),
     }));
 
     // 시그널 재계산
