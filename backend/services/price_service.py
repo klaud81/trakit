@@ -253,6 +253,13 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
     if not raw or raw["price"] == 0:
         raw = _fetch_yahoo_quote(symbol)
 
+    # 고가/저가 누락 시 Yahoo에서 보충
+    if raw and raw["price"] > 0 and not raw.get("day_high"):
+        supplement = _fetch_yahoo_api(symbol) or _fetch_yahoo_quote(symbol)
+        if supplement:
+            raw["day_high"] = raw.get("day_high") or supplement.get("day_high")
+            raw["day_low"] = raw.get("day_low") or supplement.get("day_low")
+
     if raw and raw["price"] > 0:
         price = raw["price"]
         prev_close = raw["prev_close"]
