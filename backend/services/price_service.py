@@ -112,10 +112,10 @@ def _is_trading_hours() -> bool:
 
 
 def _fetch_yahoo_api(symbol: str) -> Optional[dict]:
-    """Yahoo Finance API v8로 실시간 가격 조회 (range=1d로 정확한 전일 종가 확보)"""
+    """Yahoo Finance API v8로 실시간 가격 조회 (프리/포스트마켓 포함)"""
     try:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
-        params = {"interval": "1m", "range": "1d"}
+        params = {"interval": "1m", "range": "1d", "includePrePost": "true"}
         headers = {"User-Agent": "Mozilla/5.0"}
         resp = requests.get(url, params=params, headers=headers, timeout=10)
         resp.raise_for_status()
@@ -124,15 +124,31 @@ def _fetch_yahoo_api(symbol: str) -> Optional[dict]:
         result = data["chart"]["result"][0]
         meta = result["meta"]
 
-        price = meta.get("regularMarketPrice", 0)
-        # range=1d에서는 chartPreviousClose가 실제 전일 종가 (조정값 아님)
-        prev_close = meta.get("chartPreviousClose", 0) or meta.get("previousClose", 0)
+        regular_price = float(meta.get("regularMarketPrice", 0))
+        prev_close = float(meta.get("chartPreviousClose", 0) or meta.get("previousClose", 0))
+
+        # 프리/포스트마켓: 차트 데이터의 마지막 close 값 사용
+        price = regular_price
+        extended = False
+        timestamps = result.get("timestamp", [])
+        closes = result.get("indicators", {}).get("quote", [{}])[0].get("close", [])
+        if timestamps and closes:
+            # 마지막 유효한 close 값 (프리/포스트마켓 포함)
+            last_close = None
+            for c in reversed(closes):
+                if c is not None:
+                    last_close = c
+                    break
+            if last_close and abs(last_close - regular_price) > 0.01:
+                price = last_close
+                extended = True
 
         return {
             "price": round(float(price), 2),
             "prev_close": round(float(prev_close), 2) if prev_close else 0,
             "day_high": round(float(meta.get("regularMarketDayHigh", 0) or 0), 2) or None,
             "day_low": round(float(meta.get("regularMarketDayLow", 0) or 0), 2) or None,
+            "extended": extended,
         }
     except Exception as e:
         logger.warning(f"Yahoo API v8 failed: {e}")
@@ -140,7 +156,7 @@ def _fetch_yahoo_api(symbol: str) -> Optional[dict]:
 
 
 def _fetch_yahoo_quote(symbol: str) -> Optional[dict]:
-    """Yahoo Finance quote API fallback"""
+    """Yahoo Finance quote API fallback (프리/포스트마켓 지원)"""
     try:
         url = f"https://query1.finance.yahoo.com/v7/finance/quote"
         params = {"symbols": symbol}
@@ -150,14 +166,31 @@ def _fetch_yahoo_quote(symbol: str) -> Optional[dict]:
         data = resp.json()
 
         quote = data["quoteResponse"]["result"][0]
-        price = quote.get("regularMarketPrice", 0)
-        prev_close = quote.get("regularMarketPreviousClose", 0)
+        regular_price = float(quote.get("regularMarketPrice", 0))
+        prev_close = float(quote.get("regularMarketPreviousClose", 0))
+
+        # 프리마켓/포스트마켓 가격 우선 사용
+        market_state = quote.get("marketState", "")
+        price = regular_price
+        extended = False
+        if market_state == "PRE":
+            pre = float(quote.get("preMarketPrice", 0) or 0)
+            if pre > 0:
+                price = pre
+                extended = True
+        elif market_state in ("POST", "POSTPOST", "CLOSED"):
+            post = float(quote.get("postMarketPrice", 0) or 0)
+            if post > 0:
+                price = post
+                extended = True
 
         return {
-            "price": round(float(price), 2),
-            "prev_close": round(float(prev_close), 2) if prev_close else 0,
+            "price": round(price, 2),
+            "prev_close": round(prev_close, 2) if prev_close else 0,
             "day_high": round(float(quote.get("regularMarketDayHigh", 0) or 0), 2) or None,
             "day_low": round(float(quote.get("regularMarketDayLow", 0) or 0), 2) or None,
+            "extended": extended,
+            "market_state": market_state,
         }
     except Exception as e:
         logger.warning(f"Yahoo quote API failed: {e}")
@@ -240,6 +273,7 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
             "day_high": round(raw["day_high"], 2) if raw.get("day_high") else None,
             "day_low": round(raw["day_low"], 2) if raw.get("day_low") else None,
             "market_open": _is_market_open(),
+            "extended": raw.get("extended", False),
         }
 
         _price_cache[symbol] = result
