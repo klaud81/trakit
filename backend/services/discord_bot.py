@@ -172,14 +172,14 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 msg += f"{signal['recommendation']}\n"
                 if portfolio.get("profit") is not None:
                     msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)\n"
-                if portfolio.get("total_profit") is not None:
-                    msg += f"총손익: {portfolio['total_profit']:+,.0f}$ ({portfolio['total_profit_pct']:+.2f}%) | 원금: ${portfolio['total_invested']:,.0f}\n"
                 from services.trade_calculator import get_trade_points
                 tp = get_trade_points(current_price=current_price)
                 unit = tp.get("unit_size", 0)
                 buy_p = tp["buy_table"]["rows"][0]["price"] if tp["buy_table"]["rows"] else 0
                 sell_p = tp["sell_table"]["rows"][0]["price"] if tp["sell_table"]["rows"] else 0
-                msg += f"매수: ${buy_p}/주 | 매도: ${sell_p}/주 (기준 {unit}주)"
+                msg += f"**매수: ${buy_p}/주 | 매도: ${sell_p}/주 (기준 {unit}주)**"
+                if portfolio.get("total_profit") is not None:
+                    msg += f"\n총손익: {portfolio['total_profit']:+,.0f}$ ({portfolio['total_profit_pct']:+.2f}%) | 원금: ${portfolio['total_invested']:,.0f}"
                 return msg
 
         elif command_name == "portfolio":
