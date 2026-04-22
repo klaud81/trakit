@@ -131,6 +131,11 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
     profit = round((price - avg_cost) * shares, 2) if avg_cost and avg_cost > 0 else None
     profit_pct = round((price - avg_cost) / avg_cost * 100, 2) if avg_cost and avg_cost > 0 else None
 
+    # 총 원금 및 총 손익
+    total_invested = round(valid["contribution"].dropna().sum(), 2)
+    total_profit = round(total_value - total_invested, 2) if total_invested > 0 else None
+    total_profit_pct = round((total_value - total_invested) / total_invested * 100, 2) if total_invested > 0 else None
+
     # 매매 정보: 이전 주차 대비 주식 변동
     trade_amount = _safe_float(last["trade_amount"])
     trade_shares = None
@@ -157,6 +162,9 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
         "profit_pct": profit_pct,
         "trade_shares": trade_shares,
         "trade_amount": round(trade_amount, 2) if trade_amount else None,
+        "total_invested": total_invested,
+        "total_profit": total_profit,
+        "total_profit_pct": total_profit_pct,
         "exchange_rate": exchange["rate"],
         "updated_at": datetime.now().isoformat(),
     }
