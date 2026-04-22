@@ -52,9 +52,9 @@ export default function SignalPanel({ signal, livePrice, priceRefreshing, tradeP
         </div>
       </div>
       {signal.total_profit != null && (
-        <div style={{ marginTop: '8px', fontSize: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ marginTop: '8px', fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: 'var(--text-muted)' }}>총누적수익 (원금 {fmtUSD(signal.total_invested)})</span>
-          <span className={signal.total_profit >= 0 ? 'price-up' : 'price-down'} style={{ fontWeight: 600 }}>
+          <span className={signal.total_profit >= 0 ? 'price-up' : 'price-down'} style={{ fontWeight: 700, fontSize: '15px' }}>
             {signal.total_profit >= 0 ? '+' : ''}{fmtUSD(signal.total_profit)} ({signal.total_profit_pct >= 0 ? '+' : ''}{fmtPct(signal.total_profit_pct)})
           </span>
         </div>
