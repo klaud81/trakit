@@ -9,6 +9,9 @@ import SignalPanel from './components/SignalPanel';
 import ProgressCard from './components/ProgressCard';
 import EquityChart from './components/EquityChart';
 import ValueLineChart from './components/ValueLineChart';
+import Sidebar from './components/Sidebar';
+import NewsPanel from './components/NewsPanel';
+import NewsGate, { isNewsAuthed, logoutNews, getNewsAuthExpiry } from './components/NewsGate';
 
 /** 매수 포인트 계산 — pool이 초기값의 1/2 이하가 되면 중단 */
 function calcBuyPoints(shares, minBand, pool, unit) {
@@ -43,7 +46,39 @@ function calcSellPoints(shares, maxBand, pool, unit = 10, maxPts = 10) {
   return pts;
 }
 
+function hashToRoute() {
+  const h = (window.location.hash || '').replace('#', '');
+  return h === 'news' ? 'news' : 'tqqq';
+}
+
 export default function App() {
+  const [route, setRoute] = useState(hashToRoute());
+  const [newsAuthed, setNewsAuthedState] = useState(isNewsAuthed());
+  useEffect(() => {
+    const onHashChange = () => setRoute(hashToRoute());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  // 1시간 세션 만료 자동 체크
+  useEffect(() => {
+    if (!newsAuthed) return;
+    const check = () => {
+      if (!isNewsAuthed()) setNewsAuthedState(false);
+    };
+    const id = setInterval(check, 30_000);
+    const expiry = getNewsAuthExpiry();
+    const ms = Math.max(1000, expiry - Date.now());
+    const timeout = setTimeout(check, ms);
+    return () => { clearInterval(id); clearTimeout(timeout); };
+  }, [newsAuthed]);
+
+  const handleNewsLogout = () => {
+    logoutNews();
+    setNewsAuthedState(false);
+    if (route === 'news') window.location.hash = 'tqqq';
+  };
+
   const [portfolio, setPortfolio] = useState(null);
   const [signal, setSignal] = useState(null);
   const [price, setPrice] = useState(null);
@@ -257,19 +292,25 @@ export default function App() {
   }
 
   return (
-    <div>
-      <Header
-        portfolio={portfolio}
-        weekIdx={weekIdx} totalWeeks={allWeeks.length}
-        onPrevWeek={() => navigateWeek(weekIdx - 1)}
-        onNextWeek={() => navigateWeek(weekIdx + 1)}
-      />
-      <div className="main">
+    <div className="app-shell">
+      <Sidebar newsAuthed={newsAuthed} onNewsLogout={handleNewsLogout} />
+      <div className="app-content">
+        {route !== 'news' && (
+          <Header
+            portfolio={portfolio}
+            weekIdx={weekIdx} totalWeeks={allWeeks.length}
+            onPrevWeek={() => navigateWeek(weekIdx - 1)}
+            onNextWeek={() => navigateWeek(weekIdx + 1)}
+          />
+        )}
+        <div className="main">
         {error && (
           <div style={{ padding: '12px 16px', background: 'rgba(255,132,0,0.15)', borderRadius: '8px', fontSize: '13px', color: 'var(--primary)' }}>
             {error} — 데모 데이터로 표시합니다.
           </div>
         )}
+        {route === 'tqqq' && (
+          <>
         <div className="grid-2">
           <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} />
           <BandCard portfolio={portfolio} />
@@ -282,30 +323,42 @@ export default function App() {
           <TradeTable title="매도 포인트 (SELL)" table={tradePoints?.sell_table} type="sell" unitSize={tradePoints?.unit_size} />
         </div>
         <ProgressCard portfolio={portfolio} remaining={remaining} exchangeRate={exchangeRate} />
-        <div className="sponsor-card">
-          <span style={{ fontSize: '22px' }}>☕</span>
-          <div className="sponsor-card-text">
-            <span style={{ fontWeight: 700, fontSize: '22px' }}>후원하기</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: '22px' }}>우리은행 1005204834806 · (주)스노우볼</span>
+          </>
+        )}
+        {route === 'news' && (newsAuthed ? (
+          <NewsPanel />
+        ) : (
+          <NewsGate
+            onSuccess={() => setNewsAuthedState(true)}
+            onCancel={() => { window.location.hash = 'tqqq'; }}
+          />
+        ))}
+        {route !== 'news' && (
+          <div className="sponsor-card">
+            <span style={{ fontSize: '22px' }}>☕</span>
+            <div className="sponsor-card-text">
+              <span style={{ fontWeight: 700, fontSize: '22px' }}>후원하기</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '22px' }}>우리은행 1005204834806 · (주)스노우볼</span>
+            </div>
+            <button className="sponsor-card-copy" onClick={(e) => {
+              const text = '1005204834806';
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(text);
+              } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+              }
+              e.target.textContent = '복사됨!';
+              setTimeout(() => { e.target.textContent = '복사'; }, 2000);
+            }}>
+              복사
+            </button>
           </div>
-          <button className="sponsor-card-copy" onClick={(e) => {
-            const text = '1005204834806';
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(text);
-            } else {
-              const ta = document.createElement('textarea');
-              ta.value = text;
-              document.body.appendChild(ta);
-              ta.select();
-              document.execCommand('copy');
-              document.body.removeChild(ta);
-            }
-            e.target.textContent = '복사됨!';
-            setTimeout(() => { e.target.textContent = '복사'; }, 2000);
-          }}>
-            복사
-          </button>
-        </div>
+        )}
         {visitors && (
           <div className="visitor-bar">
             <span>오늘 {visitors.today}</span>
@@ -315,6 +368,7 @@ export default function App() {
             <span>누적 {visitors.total}</span>
           </div>
         )}
+        </div>
       </div>
     </div>
   );
