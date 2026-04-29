@@ -181,8 +181,9 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 signal = generate_signal(portfolio, current_price=current_price)
                 emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(signal["signal_type"], "⚪")
                 date_range = portfolio.get('date_range', '')
+                label = _session_label(live)
                 msg = f"{emoji} **{signal['signal_type']}** | {portfolio['week_num']}주차 ({date_range})\n"
-                msg += f"TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%)\n"
+                msg += f"TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%){label}\n"
                 msg += f"{signal['recommendation']}\n"
                 if portfolio.get("profit") is not None:
                     msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)\n"
