@@ -89,6 +89,19 @@ def register_slash_commands():
         logger.warning(f"Discord 명령어 등록 에러: {e}")
 
 
+def _session_label(p: dict) -> str:
+    """가격 응답에 사전장/시간외 라벨 표시 (extended=True일 때만)."""
+    if not p.get("extended"):
+        return ""
+    from datetime import datetime, timezone, timedelta
+    h = datetime.now(timezone(timedelta(hours=9))).hour
+    if 17 <= h < 23:
+        return " _(사전장)_"
+    if 5 <= h < 9:
+        return " _(시간외)_"
+    return " _(장외)_"
+
+
 def _get_week_by_offset(offset: int) -> dict:
     """히스토리에서 오프셋 기준 주차 데이터 조회 (0=마지막, -1=이전)"""
     from services.portfolio_service import get_portfolio_history
@@ -126,7 +139,8 @@ def handle_command(command_name: str, options: dict = None) -> str:
             from services.price_service import get_current_price
             p = get_current_price()
             arrow = "📈" if p["change"] >= 0 else "📉"
-            msg = f"{arrow} **TQQQ ${p['price']:.2f}**\n"
+            label = _session_label(p)
+            msg = f"{arrow} **TQQQ ${p['price']:.2f}**{label}\n"
             msg += f"변동: {p['change']:+.2f} ({p['change_pct']:+.2f}%)\n"
             msg += f"전일종가: ${p['prev_close']}"
             if p.get("day_high"):
@@ -226,7 +240,8 @@ def handle_command(command_name: str, options: dict = None) -> str:
             if p["price"] == 0:
                 return f"❌ {symbol}: 가격 조회 실패"
             arrow = "📈" if p["change"] >= 0 else "📉"
-            msg = f"{arrow} **{symbol} ${p['price']:.2f}**\n"
+            label = _session_label(p)
+            msg = f"{arrow} **{symbol} ${p['price']:.2f}**{label}\n"
             msg += f"변동: {p['change']:+.2f} ({p['change_pct']:+.2f}%)\n"
             msg += f"전일종가: ${p['prev_close']}"
             if p.get("day_high"):

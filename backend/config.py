@@ -25,6 +25,19 @@ USE_GOOGLE_SHEETS = True  # True면 Google Sheets에서 데이터 로딩
 # 투자 설정
 SYMBOL = "TQQQ"
 WATCHLIST = ["TQQQ", "KORU", "QQQ", "SQQQ", "SPY", "SOXL", "SOXS", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "GOOG", "META"]
+
+# KIS 해외주식 거래소 코드 (정규장)
+#   NAS=나스닥, NYS=뉴욕, AMS=아멕스/NYSE Arca
+EXCHANGE_MAP = {
+    "TQQQ": "NAS", "QQQ": "NAS", "SQQQ": "NAS",
+    "NVDA": "NAS", "TSLA": "NAS", "AAPL": "NAS",
+    "MSFT": "NAS", "AMZN": "NAS", "GOOG": "NAS", "META": "NAS",
+    "KORU": "AMS", "SPY": "AMS", "SOXL": "AMS", "SOXS": "AMS",
+}
+DEFAULT_EXCHANGE = "NAS"
+
+# 정규장 EXCD → 주간(사전장/시간외) EXCD 매핑
+DAYTIME_EXCD = {"NAS": "BAQ", "NYS": "BAY", "AMS": "BAA"}
 CONTRIBUTION_PER_CYCLE = 200  # 2주마다 $200 적립
 REBALANCE_INTERVAL_WEEKS = 2
 GOAL_WEEK = 560  # 목표 주차

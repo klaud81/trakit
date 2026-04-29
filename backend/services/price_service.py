@@ -6,7 +6,7 @@ import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
 from typing import Optional
-from config import SYMBOL, PRICE_FETCH_ALWAYS
+from config import SYMBOL, PRICE_FETCH_ALWAYS, EXCHANGE_MAP, DAYTIME_EXCD, DEFAULT_EXCHANGE
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,12 +48,29 @@ def _get_kis_token() -> Optional[str]:
         return None
 
 
-def _fetch_kis(symbol: str) -> Optional[dict]:
-    """한국투자증권 API로 해외주식 현재가 조회"""
+def _get_excd(symbol: str, session: str = "regular") -> str:
+    """심볼 → KIS 거래소 코드.
+
+    - regular: 기존 동작 유지 (모든 미국주식을 NAS 로 조회 — 실서버에서 라우팅 됨)
+    - daytime: 심볼이 실제 상장된 거래소에 따라 BAQ/BAY/BAA 매핑
+    """
+    if session == "regular":
+        return DEFAULT_EXCHANGE
+    base = EXCHANGE_MAP.get(symbol.upper(), DEFAULT_EXCHANGE)
+    return DAYTIME_EXCD.get(base, "BAQ")
+
+
+def _fetch_kis(symbol: str, session: str = "regular") -> Optional[dict]:
+    """한국투자증권 API로 해외주식 현재가 조회.
+
+    session='regular': 정규장 EXCD (NAS/NYS/AMS)
+    session='daytime': 주간 EXCD (BAQ/BAY/BAA) — 사전장/시간외 가격
+    """
     token = _get_kis_token()
     if not token:
         return None
     from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
+    excd = _get_excd(symbol, session)
     try:
         resp = requests.get(
             f"{KIS_BASE_URL}/uapi/overseas-price/v1/quotations/price",
@@ -64,7 +81,7 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
                 "tr_id": "HHDFS00000300",
                 "Content-Type": "application/json; charset=utf-8",
             },
-            params={"AUTH": "", "EXCD": "NAS", "SYMB": symbol},
+            params={"AUTH": "", "EXCD": excd, "SYMB": symbol},
             timeout=10,
         )
         resp.raise_for_status()
@@ -82,9 +99,12 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
                 "change_pct": round(change_pct, 2),
                 "day_high": round(float(output.get("high", 0) or 0), 2) or None,
                 "day_low": round(float(output.get("low", 0) or 0), 2) or None,
+                "extended": session == "daytime",
+                "session": session,
+                "excd": excd,
             }
     except Exception as e:
-        logger.warning(f"KIS API failed: {e}")
+        logger.warning(f"KIS API failed (excd={excd}): {e}")
     return None
 
 
@@ -109,6 +129,28 @@ def _is_trading_hours() -> bool:
     """KST 21시~06시 사이인지 (자동 갱신 시간대)"""
     hour = datetime.now(KST).hour
     return hour >= 21 or hour < 6
+
+
+def _is_us_extended_session() -> bool:
+    """미국 사전장/시간외 시간대 (KST, 평일 기준).
+
+    - 사전장(pre-market): ET 04:00~09:30 ≈ KST 17:00~22:30 (DST)
+    - 시간외(after-hours): ET 16:00~20:00 ≈ KST 05:00~09:00 (DST)
+    EST(겨울)는 +1시간씩 늦어지지만 여유 있게 잡음.
+    """
+    now = datetime.now(KST)
+    if now.weekday() >= 5:
+        return False
+    h, m = now.hour, now.minute
+    # 사전장: 17:00 ~ 22:30
+    if 17 <= h < 22:
+        return True
+    if h == 22 and m < 30:
+        return True
+    # 시간외: 05:00 ~ 09:00 (정규장 22:30~05:00 직후)
+    if 5 <= h < 9:
+        return True
+    return False
 
 
 def _fetch_yahoo_api(symbol: str) -> Optional[dict]:
@@ -244,14 +286,37 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
         if not PRICE_FETCH_ALWAYS and not _is_trading_hours():
             return cached
 
-    # 순서대로 시도: KIS → yfinance → Yahoo API v8 → Yahoo quote
-    raw = _fetch_kis(symbol)
+    # 사전장/시간외 시간대면 KIS 주간 EXCD(BAQ/BAY/BAA) 우선 시도
+    raw = None
+    if _is_us_extended_session():
+        raw = _fetch_kis(symbol, session="daytime")
+
+    # 정규장 또는 주간 데이터 없으면 정규 EXCD
+    if not raw or raw["price"] == 0:
+        raw = _fetch_kis(symbol, session="regular")
     if not raw or raw["price"] == 0:
         raw = _fetch_yfinance(symbol)
     if not raw or raw["price"] == 0:
         raw = _fetch_yahoo_api(symbol)
     if not raw or raw["price"] == 0:
         raw = _fetch_yahoo_quote(symbol)
+
+    # 사전장 EXCD는 prev_close 를 last 와 동일하게 반환하는 경우가 있음 → 정규장/Yahoo로 보정
+    if (
+        raw and raw.get("extended") and raw.get("price")
+        and (not raw.get("prev_close") or abs(raw["price"] - raw["prev_close"]) < 0.01)
+    ):
+        ref = (
+            _fetch_yahoo_quote(symbol)
+            or _fetch_yfinance(symbol)
+            or _fetch_kis(symbol, session="regular")
+        )
+        if ref and ref.get("prev_close"):
+            raw["prev_close"] = ref["prev_close"]
+            raw["change"] = round(raw["price"] - ref["prev_close"], 2)
+            raw["change_pct"] = round((raw["change"] / ref["prev_close"]) * 100, 2)
+            raw["day_high"] = raw.get("day_high") or ref.get("day_high")
+            raw["day_low"] = raw.get("day_low") or ref.get("day_low")
 
     # 고가/저가 누락 시 Yahoo에서 보충
     if raw and raw["price"] > 0 and not raw.get("day_high"):
