@@ -48,29 +48,17 @@ def _get_kis_token() -> Optional[str]:
         return None
 
 
-def _get_excd(symbol: str, session: str = "regular") -> str:
-    """심볼 → KIS 거래소 코드.
-
-    - regular: 기존 동작 유지 (모든 미국주식을 NAS 로 조회 — 실서버에서 라우팅 됨)
-    - daytime: 심볼이 실제 상장된 거래소에 따라 BAQ/BAY/BAA 매핑
-    """
-    if session == "regular":
-        return DEFAULT_EXCHANGE
-    base = EXCHANGE_MAP.get(symbol.upper(), DEFAULT_EXCHANGE)
-    return DAYTIME_EXCD.get(base, "BAQ")
-
-
-def _fetch_kis(symbol: str, session: str = "regular") -> Optional[dict]:
+def _fetch_kis(symbol: str) -> Optional[dict]:
     """한국투자증권 API로 해외주식 현재가 조회.
 
-    session='regular': 정규장 EXCD (NAS/NYS/AMS)
-    session='daytime': 주간 EXCD (BAQ/BAY/BAA) — 사전장/시간외 가격
+    심볼별로 상장 거래소(NAS/NYS/AMS) 매핑하여 호출.
+    실서버에서는 사전장/시간외 시간대에도 자동으로 확장된 시간 가격을 반환함.
     """
     token = _get_kis_token()
     if not token:
         return None
     from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
-    excd = _get_excd(symbol, session)
+    excd = EXCHANGE_MAP.get(symbol.upper(), DEFAULT_EXCHANGE)
     try:
         resp = requests.get(
             f"{KIS_BASE_URL}/uapi/overseas-price/v1/quotations/price",
@@ -99,8 +87,7 @@ def _fetch_kis(symbol: str, session: str = "regular") -> Optional[dict]:
                 "change_pct": round(change_pct, 2),
                 "day_high": round(float(output.get("high", 0) or 0), 2) or None,
                 "day_low": round(float(output.get("low", 0) or 0), 2) or None,
-                "extended": session == "daytime",
-                "session": session,
+                "extended": _is_us_extended_session(),
                 "excd": excd,
             }
     except Exception as e:
@@ -286,37 +273,15 @@ def get_current_price(symbol: str = SYMBOL) -> dict:
         if not PRICE_FETCH_ALWAYS and not _is_trading_hours():
             return cached
 
-    # 사전장/시간외 시간대면 KIS 주간 EXCD(BAQ/BAY/BAA) 우선 시도
-    raw = None
-    if _is_us_extended_session():
-        raw = _fetch_kis(symbol, session="daytime")
-
-    # 정규장 또는 주간 데이터 없으면 정규 EXCD
-    if not raw or raw["price"] == 0:
-        raw = _fetch_kis(symbol, session="regular")
+    # 순서대로 시도: KIS → yfinance → Yahoo API v8 → Yahoo quote
+    # KIS 정규 EXCD(NAS/AMS/NYS) 가 사전장/시간외에도 확장된 시간 가격 반환함.
+    raw = _fetch_kis(symbol)
     if not raw or raw["price"] == 0:
         raw = _fetch_yfinance(symbol)
     if not raw or raw["price"] == 0:
         raw = _fetch_yahoo_api(symbol)
     if not raw or raw["price"] == 0:
         raw = _fetch_yahoo_quote(symbol)
-
-    # 사전장 EXCD는 prev_close 를 last 와 동일하게 반환하는 경우가 있음 → 정규장/Yahoo로 보정
-    if (
-        raw and raw.get("extended") and raw.get("price")
-        and (not raw.get("prev_close") or abs(raw["price"] - raw["prev_close"]) < 0.01)
-    ):
-        ref = (
-            _fetch_yahoo_quote(symbol)
-            or _fetch_yfinance(symbol)
-            or _fetch_kis(symbol, session="regular")
-        )
-        if ref and ref.get("prev_close"):
-            raw["prev_close"] = ref["prev_close"]
-            raw["change"] = round(raw["price"] - ref["prev_close"], 2)
-            raw["change_pct"] = round((raw["change"] / ref["prev_close"]) * 100, 2)
-            raw["day_high"] = raw.get("day_high") or ref.get("day_high")
-            raw["day_low"] = raw.get("day_low") or ref.get("day_low")
 
     # 고가/저가 누락 시 Yahoo에서 보충
     if raw and raw["price"] > 0 and not raw.get("day_high"):
