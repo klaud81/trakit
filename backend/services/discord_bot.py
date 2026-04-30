@@ -322,28 +322,34 @@ def handle_command(command_name: str, options: dict = None) -> str:
 
         elif command_name == "goal":
             offset = (options or {}).get("offset", 0)
-            from services.exchange_rate_service import get_exchange_rate
-            rate = get_exchange_rate().get("rate", 1400)
+            from services.goal_service import compute_goal_status
+            from services.portfolio_service import get_current_portfolio
+            from services.price_service import get_current_price
 
             if offset and offset < 0:
                 week = _get_week_by_offset(offset)
                 if not week:
                     return f"❌ 오프셋 {offset}에 해당하는 주차 데이터가 없습니다."
                 week_num = int(week["week_num"])
-                total_value = (week.get("valuation") or 0) + (week.get("pool") or 0)
-                goal_usd = 1_000_000_000 / rate if rate > 0 else 0
-                goal_pct = (total_value / goal_usd * 100) if goal_usd > 0 else 0
-                label = f"{week['week_num']}주차 ({week.get('date_range', '')})"
-                return _build_goal_message(week_num, total_value, goal_pct, rate, label)
+                actual = (week.get("target_value") or 0) + (week.get("pool") or 0)
+                date_range = week.get("date_range", "")
             else:
-                from services.portfolio_service import get_current_portfolio
-                from services.price_service import get_current_price
                 live = get_current_price()
                 cp = live["price"] if live["price"] > 0 else None
                 p = get_current_portfolio(current_price=cp)
                 week_num = int(p["week_num"])
-                label = f"{p['week_num']}주차 ({p.get('date_range', '')})"
-                return _build_goal_message(week_num, p["total_value"], p["goal_progress"], rate, label)
+                actual = p["total_value"]
+                date_range = p.get("date_range", "")
+
+            g = compute_goal_status(week_num, actual)
+            arrow = "📈" if g["weeks_diff"] > 0 else "📉" if g["weeks_diff"] < 0 else "🟢"
+            yrs, wks = g["years_left"], g["weeks_left_in_year"]
+            remaining_str = f"{yrs}년 {wks}주" if yrs > 0 else f"{wks}주"
+            msg = f"🎯 **목표 진행률** | {week_num}주차 ({date_range})\n"
+            msg += f"전체 진행: **{g['goal_progress']:.2f}%** (${g['actual_value']:,.0f} / ${g['goal_usd']:,.0f})\n"
+            msg += f"계획 대비: **{g['plan_pct']:.2f}%** · {arrow} **{g['time_label']}**\n"
+            msg += f"남은: {g['remaining_cycles']}회 ({remaining_str}) · 목표 560주차"
+            return msg
 
         elif command_name == "refresh":
             from core.data_loader import refresh_base_sheet

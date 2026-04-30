@@ -196,6 +196,38 @@ async def exchange_rate():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/goal")
+async def goal(offset: int = Query(0, description="주차 오프셋 (0=현재 live 가격, -1=이전 주차 시트값...)")):
+    """목표 진행률 + 계획대비 + 시간차.
+
+    offset=0: 현재 portfolio total_value (live price 적용) 기준
+    offset<0: 시트의 V(target_value) + pool 기준
+    """
+    try:
+        from services.goal_service import compute_goal_status
+        from services.portfolio_service import get_current_portfolio, get_portfolio_history
+        from services.price_service import get_current_price
+        if offset == 0:
+            live = get_current_price()
+            cp = live["price"] if live["price"] > 0 else None
+            p = get_current_portfolio(current_price=cp)
+            week_num = int(p["week_num"])
+            actual = p["total_value"]
+        else:
+            history = get_portfolio_history()
+            idx = len(history) - 1 + offset
+            if idx < 0 or idx >= len(history):
+                raise HTTPException(status_code=404, detail=f"오프셋 {offset} 데이터 없음")
+            week = history[idx]
+            week_num = int(week["week_num"])
+            actual = (week.get("target_value") or 0) + (week.get("pool") or 0)
+        return compute_goal_status(week_num, actual)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/visit")
 async def visit():
     """방문 기록 + 통계 반환"""
