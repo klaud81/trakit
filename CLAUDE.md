@@ -35,6 +35,9 @@ cd backend && python -m pytest test/ -v
 - `date_range` 형식: `"2026/3/23-4/3"` — 연도 넘김(12월→1월) 처리 필요
 - `week_num`: 문자열 ("258"). `week_label` ("258 주차")에서 추출
 - 실시간 가격: KIS(한국투자증권) → yfinance → Yahoo API v8 → Yahoo quote 순서. 캐시 30초, KST 21~06시만 갱신
+- KIS 거래소 코드는 심볼별 매핑 (`config.EXCHANGE_MAP`): NASDAQ 종목→`NAS`, NYSE Arca/AMEX→`AMS`. 잘못된 EXCD 사용 시 정규장 대신 어제 종가 반환됨 (예: KORU 를 NAS 로 호출)
+- KIS 정규 EXCD는 사전장(US 04:00~09:30 ET = KST 17:00~22:30) / 시간외(KST 05:00~09:00) 시간대에도 자동으로 확장된 시간 가격을 반환. 별도 "주간(BAQ/BAY/BAA)" EXCD 는 KIS 내부 세션이라 미국 사전장과 다른 값 → 사용 금지
+- 사전장/시간외 가격 여부는 `extended` 플래그로 응답에 포함. `/price`, `/quote`, `/signal` Discord 응답이 `_(사전장)_` / `_(시간외)_` 라벨 부착 (`discord_bot._session_label`)
 - KIS API 키: `backend/.env`에 저장 (`.gitignore` 포함). AWS Parameter Store(`/trakit/*`)에서 관리
 - **시크릿 파일(.env, .pem, credentials)은 절대 커밋하지 않음**
 - 캐시 저장 시 로그 출력: 가격(`💰`), 환율(`💱`), KIS 토큰(`🔑`), Google Sheets(`📊`)
@@ -55,7 +58,9 @@ cd backend && python -m pytest test/ -v
 - 마지막 주차: 실시간 가격으로 평가금/시그널 재계산. 이전 주차: 저장 데이터 사용
 - 환율: `/api/exchange-rate`에서 가져와 PortfolioCard(원화 환산), ProgressCard(목표 금액) 적용
 - API 실패 시 `demoData.js`로 fallback
-- 레이아웃: `.app-shell` (flex) = `Sidebar` + `.app-content` (Header + `.main`). 사이드바는 full-height sticky, 로고 `TRAKIT` 포함. 접기/펼치기 토글 (64px ↔ 220px)
+- 레이아웃: `.app-shell` (flex) = `Sidebar` + `.app-content` (Header + `.main`). 사이드바는 full-height sticky, 로고 `TRAKIT` 포함. 접기/펼치기 토글 (64px ↔ 220px). **기본 접힘 상태**
+- 차트 (EquityChart, ValueLineChart): Recharts `<Brush>` 슬라이더로 가로 스크롤. 기본 윈도우 마지막 50주차, 자유롭게 리사이즈/팬 가능. Y축은 보이는 구간 기준으로 동적 재계산
+- ProgressCard 계획 트래킹: `(V_prev + 200) × ratio` (홀수 cycle 1.03, 짝수 1.0) 공식으로 모든 cycle의 계획값 계산. 현재 `goal_progress` 퍼센트가 가리키는 달러금액을 계획값과 비교 → 계획대비 % + 시간차(빠름/느림). 시간차 막대 그래프 ±52주(1년) 풀스케일
 - 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
 - 뉴스 라우트(`#news`)에서는 Header / 후원하기 카드 숨김, 방문자 통계는 모든 라우트에 표시
 - NewsPanel 필터: SOURCE_TABS (전체/SAVE/로이터/파이낸셜뉴스) 는 서버측 `label_group` 파라미터로 refetch. CATEGORIES_BY_TAB 은 클라이언트측 `tag_names` 필터 (전체 tab의 '분석' pill은 `분석` OR `시황/분석` 매칭). SAVE_CATEGORIES 는 서버측 `label_name` 파라미터로 refetch

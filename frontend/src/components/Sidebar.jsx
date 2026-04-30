@@ -11,7 +11,7 @@ function hashToKey() {
 }
 
 export default function Sidebar({ newsAuthed, onNewsLogout }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [active, setActive] = useState(hashToKey());
 
   useEffect(() => {
