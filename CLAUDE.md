@@ -22,7 +22,7 @@ cd backend && python -m pytest test/ -v
 - `backend/` — FastAPI 서버. 진입점: `app.py`, 설정: `config.py`
 - `backend/api/routes.py` — 모든 API 엔드포인트 (`/api/*`)
 - `backend/core/data_loader.py` — Google Sheets / CSV 데이터 로딩
-- `backend/services/` — portfolio, price, trade_calculator, backtesting, exchange_rate 서비스
+- `backend/services/` — portfolio, price, trade_calculator, backtesting, exchange_rate, goal 서비스
 - `frontend/src/App.jsx` — 메인 앱 (상태관리, 데이터 로딩, 주차 네비게이션, 해시 라우팅 `#tqqq` / `#news`)
 - `frontend/src/components/` — UI 컴포넌트 (Header, Sidebar, SignalPanel, NewsPanel 등)
 - `data/` — 로컬 CSV/TSV fallback 데이터
@@ -48,6 +48,7 @@ cd backend && python -m pytest test/ -v
 - 날짜 필터링: 시작일이 오늘 이후인 미래 데이터 자동 제외 (`_filter_by_date`)
 - 뉴스 프록시: `/api/news`, `/api/news/detail/{id}` — `api.saveticker.com/api/news/list|detail` 을 서버측에서 호출 (브라우저 직접 호출 시 CORS 차단됨). 목록 60초 / 상세 5분 메모리 캐시. 실패 시 stale 캐시 반환
 - saveticker 필터 파라미터: `label_group` (2=SAVE, 3=로이터, 4=파이낸셜뉴스), `label_name` (SAVE 하위: 1=전체, 2=종합, 3=속보, 4=정보, 5=분석, 6=암호화폐, 7=경제지표, 8=에너지, 9=연준, 10=일정, 11=투자의견), `sort=created_at_desc`
+- `goal_service.py`: 시트 raw CSV 에서 "계획" 컬럼(끝에서 3번째)을 읽어 week_num→planned 맵을 5분 캐시. 시트 마지막 주차 이후는 `(V_prev+200) × ratio` 로 560주차까지 연장. `compute_goal_status(week_num, actual)` 가 계획대비 %, 시간차, 남은 횟수/년수 계산해 dict 반환 → `/api/goal` 과 Discord `/goal` 이 공유
 
 ### 프론트엔드
 - `week_num`은 숫자로 변환하여 사용 (차트 ReferenceLine 매칭)
@@ -60,7 +61,7 @@ cd backend && python -m pytest test/ -v
 - API 실패 시 `demoData.js`로 fallback
 - 레이아웃: `.app-shell` (flex) = `Sidebar` + `.app-content` (Header + `.main`). 사이드바는 full-height sticky, 로고 `TRAKIT` 포함. 접기/펼치기 토글 (64px ↔ 220px). **기본 접힘 상태**
 - 차트 (EquityChart, ValueLineChart): Recharts `<Brush>` 슬라이더로 가로 스크롤. 기본 윈도우 마지막 50주차, 자유롭게 리사이즈/팬 가능. Y축은 보이는 구간 기준으로 동적 재계산
-- ProgressCard 계획 트래킹: `(V_prev + 200) × ratio` (홀수 cycle 1.03, 짝수 1.0) 공식으로 모든 cycle의 계획값 계산. 현재 `goal_progress` 퍼센트가 가리키는 달러금액을 계획값과 비교 → 계획대비 % + 시간차(빠름/느림). 시간차 막대 그래프 ±52주(1년) 풀스케일
+- ProgressCard 계획 트래킹: `/api/goal?offset=N` 호출 (offset=0 라이브 가격, 음수는 시트의 `V(target_value) + pool` 사용). 계획값은 시트의 "계획" 컬럼 직접 추출 (조정 행 포함 → 단순 1.03/1.0 트래젝토리보다 정확). 시간차 막대 ±26주(반년) 풀스케일
 - 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
 - 뉴스 라우트(`#news`)에서는 Header / 후원하기 카드 숨김, 방문자 통계는 모든 라우트에 표시
 - NewsPanel 필터: SOURCE_TABS (전체/SAVE/로이터/파이낸셜뉴스) 는 서버측 `label_group` 파라미터로 refetch. CATEGORIES_BY_TAB 은 클라이언트측 `tag_names` 필터 (전체 tab의 '분석' pill은 `분석` OR `시황/분석` 매칭). SAVE_CATEGORIES 는 서버측 `label_name` 파라미터로 refetch
@@ -88,6 +89,7 @@ cd backend && python -m pytest test/ -v
 | POST | `/api/discord/interactions` | Discord 슬래시 명령어 처리 |
 | GET | `/api/config` | 프론트엔드 설정 (갱신 시간대/간격) |
 | GET | `/api/exchange-rate` | USD/KRW 환율 (KST 17시 이후 갱신) |
+| GET | `/api/goal` | 목표 진행률 + 계획대비 + 시간차 (`?offset=0` 현재 라이브, `<0` 시트 V+pool) |
 | GET | `/api/news` | 뉴스 목록 프록시 (saveticker, 60초 캐시). 파라미터: `page`, `page_size`, `label_group`, `label_name`, `sort` |
 | GET | `/api/news/detail/{id}` | 뉴스 상세 프록시 (saveticker, 5분 캐시) |
 
