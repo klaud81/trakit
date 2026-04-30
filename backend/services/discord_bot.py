@@ -69,6 +69,11 @@ def register_slash_commands():
             "description": "관심 티커 목록 조회",
         },
         {
+            "name": "goal",
+            "description": "목표 진행률 + 계획대비 시간차 (오프셋: -1 이전 주차)",
+            "options": [{"name": "offset", "description": "주차 오프셋 (0=현재, -1=이전, -2=2주전...)", "type": 4, "required": False}],
+        },
+        {
             "name": "refresh",
             "description": "Google Sheets 데이터 갱신",
         },
@@ -87,6 +92,58 @@ def register_slash_commands():
             logger.warning(f"Discord 명령어 등록 실패: {resp.status_code} {resp.text[:200]}")
     except Exception as e:
         logger.warning(f"Discord 명령어 등록 에러: {e}")
+
+
+# 목표 계획 트래젝토리 (모듈 로드 시 1회 계산)
+_GOAL_WEEK = 560
+_CONTRIBUTION = 200.0
+_PLANNED_TRAJECTORY = None
+
+
+def _planned_trajectory() -> list[float]:
+    """매 cycle (V_prev + 200) × ratio (홀수=1.03, 짝수=1.0) 누적."""
+    global _PLANNED_TRAJECTORY
+    if _PLANNED_TRAJECTORY is not None:
+        return _PLANNED_TRAJECTORY
+    arr = [0.0]
+    v = 0.0
+    for i in range(1, _GOAL_WEEK // 2 + 100 + 1):
+        v = (v + _CONTRIBUTION) * (1.03 if i % 2 == 1 else 1.0)
+        arr.append(v)
+    _PLANNED_TRAJECTORY = arr
+    return arr
+
+
+def _build_goal_message(week_num: int, total_value: float, goal_pct: float, rate: float, label_prefix: str) -> str:
+    """계획대비 + 시간차 메시지 생성 (ProgressCard 와 동일 로직)."""
+    goal_usd = 1_000_000_000 / rate if rate > 0 else 0
+    actual_usd = goal_pct / 100 * goal_usd
+    cycle = week_num // 2
+    trajectory = _planned_trajectory()
+    planned = trajectory[cycle] if cycle < len(trajectory) else trajectory[-1]
+    plan_pct = (actual_usd / planned * 100) if planned > 0 else 0
+    target_cycle = len(trajectory) - 1
+    for i, v in enumerate(trajectory):
+        if v >= actual_usd:
+            target_cycle = i
+            break
+    weeks_diff = (target_cycle - cycle) * 2
+    if weeks_diff > 0:
+        time_label = f"📈 **{weeks_diff}주 빠름**"
+    elif weeks_diff < 0:
+        time_label = f"📉 **{abs(weeks_diff)}주 느림**"
+    else:
+        time_label = "🟢 **계획대로**"
+    weeks_left = max(0, _GOAL_WEEK - week_num)
+    yrs, wks = divmod(weeks_left, 52)
+    remaining_str = f"{yrs}년 {wks}주" if yrs > 0 else f"{wks}주"
+    remaining_cycles = weeks_left // 2
+
+    msg = f"🎯 **목표 진행률** | {label_prefix}\n"
+    msg += f"전체 진행: **{goal_pct:.2f}%** (${actual_usd:,.0f} / ${goal_usd:,.0f})\n"
+    msg += f"계획 대비: **{plan_pct:.2f}%** · {time_label}\n"
+    msg += f"남은: {remaining_cycles}회 ({remaining_str}) · 목표 560주차"
+    return msg
 
 
 def _session_label(p: dict) -> str:
@@ -125,7 +182,8 @@ def _build_help_text() -> str:
         "`/portfolio [offset]` — 포트폴리오 현황 (평가금·Pool·총자산). `offset` 규칙은 `/signal`과 동일\n"
         "`/quote <symbol>` — 개별 티커 실시간 가격 (예: `/quote symbol:NVDA`)\n"
         f"`/watch` — 관심 티커 목록 [{tickers}]\n"
-        "`/rate` — USD/KRW 환율"
+        "`/rate` — USD/KRW 환율\n"
+        "`/goal [offset]` — 목표 진행률 + 계획대비 시간차"
     )
 
 
@@ -261,6 +319,31 @@ def handle_command(command_name: str, options: dict = None) -> str:
             msg = f"💱 **1 USD = {r['rate']:,.2f} KRW**\n"
             msg += f"날짜: {r['date']} | 소스: {r['source']}"
             return msg
+
+        elif command_name == "goal":
+            offset = (options or {}).get("offset", 0)
+            from services.exchange_rate_service import get_exchange_rate
+            rate = get_exchange_rate().get("rate", 1400)
+
+            if offset and offset < 0:
+                week = _get_week_by_offset(offset)
+                if not week:
+                    return f"❌ 오프셋 {offset}에 해당하는 주차 데이터가 없습니다."
+                week_num = int(week["week_num"])
+                total_value = (week.get("valuation") or 0) + (week.get("pool") or 0)
+                goal_usd = 1_000_000_000 / rate if rate > 0 else 0
+                goal_pct = (total_value / goal_usd * 100) if goal_usd > 0 else 0
+                label = f"{week['week_num']}주차 ({week.get('date_range', '')})"
+                return _build_goal_message(week_num, total_value, goal_pct, rate, label)
+            else:
+                from services.portfolio_service import get_current_portfolio
+                from services.price_service import get_current_price
+                live = get_current_price()
+                cp = live["price"] if live["price"] > 0 else None
+                p = get_current_portfolio(current_price=cp)
+                week_num = int(p["week_num"])
+                label = f"{p['week_num']}주차 ({p.get('date_range', '')})"
+                return _build_goal_message(week_num, p["total_value"], p["goal_progress"], rate, label)
 
         elif command_name == "refresh":
             from core.data_loader import refresh_base_sheet
