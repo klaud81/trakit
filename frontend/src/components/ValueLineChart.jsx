@@ -1,14 +1,15 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine,
+  CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Brush,
 } from 'recharts';
 
-export default function ValueLineChart({ history, currentWeek }) {
-  if (!history || history.length === 0) return null;
+const DEFAULT_WINDOW = 50;
 
+export default function ValueLineChart({ history, currentWeek }) {
   // 1주당 가격으로 환산
   const perShareData = useMemo(() => {
+    if (!history) return [];
     return history.map((d) => {
       const shares = d.shares || 1;
       return {
@@ -22,9 +23,23 @@ export default function ValueLineChart({ history, currentWeek }) {
     });
   }, [history]);
 
-  // Y축 범위 계산 (여유 있게)
+  const total = perShareData.length;
+  const [windowStart, setWindowStart] = useState(0);
+  const [windowEnd, setWindowEnd] = useState(0);
+
+  useEffect(() => {
+    if (total === 0) return;
+    setWindowStart(Math.max(0, total - DEFAULT_WINDOW));
+    setWindowEnd(total - 1);
+  }, [total]);
+
+  const visibleData = useMemo(
+    () => perShareData.slice(windowStart, windowEnd + 1),
+    [perShareData, windowStart, windowEnd]
+  );
+
   const yDomain = useMemo(() => {
-    const vals = perShareData.flatMap((d) =>
+    const vals = visibleData.flatMap((d) =>
       [d.price, d.avg_cost, d.v_per_share, d.min_per_share, d.max_per_share].filter((v) => v != null)
     );
     if (vals.length === 0) return [0, 100];
@@ -32,19 +47,28 @@ export default function ValueLineChart({ history, currentWeek }) {
     const max = Math.max(...vals);
     const padding = (max - min) * 0.15;
     return [Math.max(0, Math.floor(min - padding)), Math.ceil(max + padding)];
-  }, [perShareData]);
+  }, [visibleData]);
+
+  if (!perShareData.length) return null;
+
+  const handleBrushChange = ({ startIndex, endIndex }) => {
+    if (startIndex == null || endIndex == null) return;
+    setWindowStart(startIndex);
+    setWindowEnd(endIndex);
+  };
 
   return (
     <div className="card">
       <div className="card-title">Value Movement / 주당 가격 (가치 이동선)</div>
       <div className="chart-container">
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={320}>
           <LineChart data={perShareData}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="week_num"
               type="number"
               domain={['dataMin', 'dataMax']}
+              allowDataOverflow
               stroke="var(--text-muted)"
               fontSize={11}
               tickFormatter={(v) => `${v}w`}
@@ -71,6 +95,17 @@ export default function ValueLineChart({ history, currentWeek }) {
             <Line type="monotone" dataKey="v_per_share" stroke="#FF8400" strokeWidth={2} strokeDasharray="6 3" dot={false} name="V/주(평균)" />
             <Line type="monotone" dataKey="max_per_share" stroke="#D32F2F" strokeWidth={1} dot={false} name="최대/주" />
             <Line type="monotone" dataKey="min_per_share" stroke="#1565C0" strokeWidth={1} dot={false} name="최소/주" />
+            {total > DEFAULT_WINDOW && (
+              <Brush
+                dataKey="week_num"
+                height={24}
+                stroke="var(--primary)"
+                startIndex={windowStart}
+                endIndex={windowEnd}
+                onChange={handleBrushChange}
+                tickFormatter={(v) => `${v}w`}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
