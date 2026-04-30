@@ -192,7 +192,8 @@ export default function App() {
     const valuation = liveP ? liveP * week.shares : (week.valuation || week.price * week.shares);
     const pool = week.pool || 0;
     const total = valuation + pool;
-    const goalPct = (total / (1_000_000_000 / 1400)) * 100;
+    const rate = exchangeRate?.rate || 1400;
+    const goalPct = (total / (1_000_000_000 / rate)) * 100;
 
     // 매매 정보: 이전 주차 대비 주식 변동
     const prevWeek = newIdx > 0 ? allWeeks[newIdx - 1] : null;
