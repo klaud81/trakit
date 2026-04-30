@@ -67,7 +67,7 @@ export default function ProgressCard({ portfolio, remaining, exchangeRate }) {
         <span>목표: 560주차</span>
       </div>
       {plannedNow > 0 && (() => {
-        const MAX_SCALE = 52; // ±52주(1년) 기준 풀스케일
+        const MAX_SCALE = 26; // ±26주(반년) 기준 풀스케일
         const clamped = Math.max(-MAX_SCALE, Math.min(MAX_SCALE, weeksDiff));
         const barPct = (Math.abs(clamped) / MAX_SCALE) * 50; // 0~50%
         const barLeft = weeksDiff >= 0 ? '50%' : `${50 - barPct}%`;
