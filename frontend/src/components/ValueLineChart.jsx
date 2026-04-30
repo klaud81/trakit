@@ -61,7 +61,7 @@ export default function ValueLineChart({ history, currentWeek }) {
     <div className="card">
       <div className="card-title">Value Movement / 주당 가격 (가치 이동선)</div>
       <div className="chart-container">
-        <ResponsiveContainer width="100%" height={320}>
+        <ResponsiveContainer width="100%" height="100%">
           <LineChart data={perShareData}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis

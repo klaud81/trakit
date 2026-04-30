@@ -57,7 +57,7 @@ export default function EquityChart({ history, currentWeek }) {
     <div className="card">
       <div className="card-title">Value Rebalancing Chart (평가금)</div>
       <div className="chart-container">
-        <ResponsiveContainer width="100%" height={320}>
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={cleanHistory}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis

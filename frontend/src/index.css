@@ -260,7 +260,7 @@ body {
 .progress-info { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); }
 
 /* ===== Chart ===== */
-.chart-container { height: 300px; }
+.chart-container { height: 360px; }
 
 /* ===== News Panel ===== */
 .news-panel { display: flex; flex-direction: column; gap: 20px; padding: 8px 0; }
@@ -674,7 +674,7 @@ body {
   .price-bar { flex-wrap: wrap; gap: 6px; padding: 8px 12px; font-size: 13px; }
   .price-bar-price { font-size: 16px; }
   .price-bar-refresh { font-size: 18px; }
-  .chart-container { height: 220px; }
+  .chart-container { height: 320px; }
   .trade-table th, .trade-table td { padding: 8px 8px; font-size: 12px; }
   .sponsor-card { flex-wrap: wrap; padding: 12px 16px; }
   .sponsor-card-text span { font-size: 16px !important; }
