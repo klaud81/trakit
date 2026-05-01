@@ -307,12 +307,18 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 p = get_current_portfolio(current_price=live["price"] if live["price"] > 0 else None)
                 msg = f"📊 **포트폴리오** ({p['week_num']}주차 · {p.get('date_range', '')})\n"
                 msg += f"평가금: ${p['valuation']:,.2f}\n"
-                trade_shares = p.get("trade_shares")
+                # 회차 거래: 체결가 개수 × 단위주
+                executed = p.get("executed_prices") or []
+                trade_amt_sign = p.get("trade_amount") or 0
                 trade_info = ""
-                if trade_shares and trade_shares != 0:
-                    label = "매도" if trade_shares < 0 else "매수"
-                    trade_amt = p.get("trade_amount", 0) or 0
-                    trade_info = f" ({label} {abs(trade_shares)}주 · ${trade_amt:,.2f})"
+                if executed:
+                    from services.trade_calculator import get_trade_points
+                    unit = get_trade_points(current_price=live["price"] if live["price"] > 0 else None).get("unit_size", 0)
+                    label = "매도" if trade_amt_sign > 0 else "매수"
+                    rounds = len(executed)
+                    shares_done = rounds * unit
+                    amount = sum(executed) * unit
+                    trade_info = f" ({label} {rounds}회 × {unit}주 = {shares_done}주 · ${amount:,.2f})"
                 msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}{trade_info}\n"
                 msg += f"Pool: ${p['pool']:,.2f}\n"
                 msg += f"총 자산: **${p['total_value']:,.2f}**\n"
