@@ -258,6 +258,20 @@ def handle_command(command_name: str, options: dict = None) -> str:
                     f"**다음 매수: ${buy_p}/주 (-${buy_amt:,.2f}) | "
                     f"매도: ${sell_p}/주 (+${sell_amt:,.2f}) [기준 {unit}주]**"
                 )
+                # 누적 매수/매도 (시트의 trade_amount: 음수=매수, 양수=매도)
+                from services.portfolio_service import get_portfolio_history
+                hist = get_portfolio_history()
+                buys = [h["trade_amount"] for h in hist if h.get("trade_amount") and h["trade_amount"] < 0]
+                sells = [h["trade_amount"] for h in hist if h.get("trade_amount") and h["trade_amount"] > 0]
+                total_buy = sum(buys)
+                total_sell = sum(sells)
+                if buys or sells:
+                    msg += (
+                        f"\n매매 내역: "
+                        f"매수 {len(buys)}회 -${abs(total_buy):,.0f} · "
+                        f"매도 {len(sells)}회 +${total_sell:,.0f} · "
+                        f"순 {'+' if total_sell+total_buy >= 0 else ''}${total_sell+total_buy:,.0f}"
+                    )
                 if portfolio.get("total_profit") is not None:
                     msg += f"\n총손익: {portfolio['total_profit']:+,.0f}$ ({portfolio['total_profit_pct']:+.2f}%) | 원금: ${portfolio['total_invested']:,.0f}"
                 return msg
