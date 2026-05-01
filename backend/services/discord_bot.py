@@ -248,8 +248,17 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 from services.trade_calculator import get_trade_points
                 tp = get_trade_points(current_price=current_price)
                 unit = tp.get("unit_size", 0)
-                buy_p = tp["buy_table"]["rows"][0]["price"] if tp["buy_table"]["rows"] else 0
-                sell_p = tp["sell_table"]["rows"][0]["price"] if tp["sell_table"]["rows"] else 0
+                # 이번 회차 체결가 적용: 이미 처리된 tier skip 후 다음 tier 픽
+                executed = portfolio.get("executed_prices") or []
+                trade_amt_sign = portfolio.get("trade_amount") or 0
+                buy_rows = tp["buy_table"]["rows"]
+                sell_rows = tp["sell_table"]["rows"]
+                if executed and trade_amt_sign > 0:
+                    sell_rows = [r for r in sell_rows if r["price"] > max(executed)]
+                if executed and trade_amt_sign < 0:
+                    buy_rows = [r for r in buy_rows if r["price"] < min(executed)]
+                buy_p = buy_rows[0]["price"] if buy_rows else 0
+                sell_p = sell_rows[0]["price"] if sell_rows else 0
                 msg += f"**매수: ${buy_p}/주 | 매도: ${sell_p}/주 (기준 {unit}주)**"
                 if portfolio.get("total_profit") is not None:
                     msg += f"\n총손익: {portfolio['total_profit']:+,.0f}$ ({portfolio['total_profit_pct']:+.2f}%) | 원금: ${portfolio['total_invested']:,.0f}"
