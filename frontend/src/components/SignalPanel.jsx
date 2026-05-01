@@ -1,12 +1,25 @@
 import { fmt, fmtPct, fmtUSD } from '../utils/format';
 
-export default function SignalPanel({ signal, livePrice, priceRefreshing, tradePoints }) {
+export default function SignalPanel({ signal, livePrice, priceRefreshing, tradePoints, cycleTrade }) {
   if (!signal) return null;
-  const buyPrice = tradePoints?.buy_table?.rows?.[0]?.price || 0;
-  const sellPrice = tradePoints?.sell_table?.rows?.[0]?.price || 0;
   const unitSize = tradePoints?.unit_size;
   const profit = signal.profit;
   const profitPct = signal.profit_pct;
+  const executedPrices = cycleTrade?.executed_prices || [];
+  const tradeAmount = cycleTrade?.trade_amount || 0;
+  const cycleDirection = tradeAmount > 0 ? '매도' : tradeAmount < 0 ? '매수' : null;
+  const cycleColor = tradeAmount > 0 ? 'var(--sell)' : 'var(--buy)';
+  // 이번 회차 체결가 적용: 이미 처리된 tier 제외하고 다음 tier 픽
+  const allBuyRows = tradePoints?.buy_table?.rows || [];
+  const allSellRows = tradePoints?.sell_table?.rows || [];
+  const buyRows = (executedPrices.length > 0 && tradeAmount < 0)
+    ? allBuyRows.filter((r) => r.price < Math.min(...executedPrices))
+    : allBuyRows;
+  const sellRows = (executedPrices.length > 0 && tradeAmount > 0)
+    ? allSellRows.filter((r) => r.price > Math.max(...executedPrices))
+    : allSellRows;
+  const buyPrice = buyRows[0]?.price || 0;
+  const sellPrice = sellRows[0]?.price || 0;
   const borderColor =
     signal.signal_type === 'BUY' ? 'var(--buy)' :
     signal.signal_type === 'SELL' ? 'var(--sell)' : 'var(--hold)';
@@ -57,6 +70,13 @@ export default function SignalPanel({ signal, livePrice, priceRefreshing, tradeP
           <span className={signal.total_profit >= 0 ? 'price-up' : 'price-down'} style={{ fontWeight: 700, fontSize: '15px' }}>
             {signal.total_profit >= 0 ? '+' : ''}{fmtUSD(signal.total_profit)} ({signal.total_profit_pct >= 0 ? '+' : ''}{fmtPct(signal.total_profit_pct)})
           </span>
+        </div>
+      )}
+      {executedPrices.length > 0 && cycleDirection && (
+        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+          이번 회차 요약:{' '}
+          <span style={{ color: cycleColor, fontWeight: 600 }}>{cycleDirection}</span>:{' '}
+          {executedPrices.map((p) => `$${p}`).join(', ')}
         </div>
       )}
     </div>

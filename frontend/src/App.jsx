@@ -187,6 +187,12 @@ export default function App() {
 
     const week = allWeeks[newIdx];
     const isLastWeek = newIdx === allWeeks.length - 1;
+    // 최신 주차로 복귀 시 portfolio 재조회 (executed_prices 등 원본 복구)
+    if (isLastWeek) {
+      const fresh = await fetchApi('/portfolio');
+      if (fresh) setPortfolio(fresh);
+      return;
+    }
     const liveP = isLastWeek && price && price.price > 0 ? price.price : null;
     const usedPrice = liveP || week.price;
     const valuation = liveP ? liveP * week.shares : (week.valuation || week.price * week.shares);
@@ -210,6 +216,7 @@ export default function App() {
       total_value: total, goal_progress: Math.round(goalPct * 100) / 100,
       trade_shares: tradeShares,
       trade_amount: isLastWeek ? prev?.trade_amount : (tradeShares ? Math.abs(tradeShares * week.price) : null),
+      executed_prices: isLastWeek ? prev?.executed_prices : [],
     }));
 
     // 시그널 재계산
@@ -316,7 +323,7 @@ export default function App() {
           <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} />
           <BandCard portfolio={portfolio} />
         </div>
-        <SignalPanel signal={signal} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} />
+        <SignalPanel signal={signal} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} cycleTrade={portfolio} />
         <EquityChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <ValueLineChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <div className="grid-2">

@@ -248,30 +248,18 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 from services.trade_calculator import get_trade_points
                 tp = get_trade_points(current_price=current_price)
                 unit = tp.get("unit_size", 0)
-                # 이번 회차 체결가 적용: 이미 처리된 가격대 skip
-                executed = portfolio.get("executed_prices") or []
-                trade_amt_sign = portfolio.get("trade_amount") or 0
-                buy_rows = tp["buy_table"]["rows"]
-                sell_rows = tp["sell_table"]["rows"]
-                if executed and trade_amt_sign > 0:
-                    sell_rows = [r for r in sell_rows if r["price"] > max(executed)]
-                if executed and trade_amt_sign < 0:
-                    buy_rows = [r for r in buy_rows if r["price"] < min(executed)]
-                buy_row = buy_rows[0] if buy_rows else {}
-                sell_row = sell_rows[0] if sell_rows else {}
-                buy_p = buy_row.get("price", 0)
-                buy_amt = buy_row.get("amount", 0)
-                sell_p = sell_row.get("price", 0)
-                sell_amt = sell_row.get("amount", 0)
-                msg += (
-                    f"**다음 매수: ${buy_p}/주 (-${buy_amt:,.2f}) | "
-                    f"매도: ${sell_p}/주 (+${sell_amt:,.2f}) [기준 {unit}주]**"
-                )
-                if executed:
-                    direction = "매도" if trade_amt_sign > 0 else "매수" if trade_amt_sign < 0 else ""
-                    msg += f"\n이번 회차 {direction} 체결: " + ", ".join(f"${p}" for p in executed)
+                buy_p = tp["buy_table"]["rows"][0]["price"] if tp["buy_table"]["rows"] else 0
+                sell_p = tp["sell_table"]["rows"][0]["price"] if tp["sell_table"]["rows"] else 0
+                msg += f"**매수: ${buy_p}/주 | 매도: ${sell_p}/주 (기준 {unit}주)**"
                 if portfolio.get("total_profit") is not None:
                     msg += f"\n총손익: {portfolio['total_profit']:+,.0f}$ ({portfolio['total_profit_pct']:+.2f}%) | 원금: ${portfolio['total_invested']:,.0f}"
+                # 이번 회차 체결 요약 (제일 아래)
+                executed = portfolio.get("executed_prices") or []
+                trade_amt_sign = portfolio.get("trade_amount") or 0
+                if executed:
+                    direction = "매도" if trade_amt_sign > 0 else "매수"
+                    prices_str = ", ".join(f"${p}" for p in executed)
+                    msg += f"\n이번 회차 요약: {direction}: {prices_str}"
                 return msg
 
         elif command_name == "portfolio":
