@@ -145,6 +145,19 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
         prev_shares = _safe_int(prev["shares"], 0)
         trade_shares = shares - prev_shares  # 양수=매수, 음수=매도
 
+    # 이번 회차 체결가 리스트 (구매 컬럼: "63.83, 64.12, ..." 형태)
+    purchase_str = str(last.get("purchase", "")).strip()
+    executed_prices = []
+    if purchase_str and purchase_str.lower() != "nan":
+        for p in purchase_str.split(","):
+            p = p.strip()
+            if not p:
+                continue
+            try:
+                executed_prices.append(float(p))
+            except ValueError:
+                pass
+
     return {
         "week_num": _week_str(last["week_num"]),
         "date_range": str(last["date_range"]) if pd.notna(last["date_range"]) else None,
@@ -163,6 +176,7 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
         "profit_pct": profit_pct,
         "trade_shares": trade_shares,
         "trade_amount": round(trade_amount, 2) if trade_amount else None,
+        "executed_prices": executed_prices,
         "total_invested": total_invested,
         "total_profit": total_profit,
         "total_profit_pct": total_profit_pct,

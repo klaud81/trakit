@@ -81,15 +81,16 @@ def load_base_sheet(path: Optional[Path] = None) -> pd.DataFrame:
     # week_num은 문자열로 보존 (204-1, 208-1 등 지원)
     df["week_num"] = df["week_num"].astype(str).str.strip()
 
-    # 나머지 숫자 변환
+    # 나머지 숫자 변환 (purchase 는 콤마 구분 체결가 리스트일 수 있어 string 보존)
     numeric_cols = [
         "seq", "two_sqrt_g", "price", "shares", "avg_cost",
         "dividend", "valuation", "pool", "contribution", "g",
         "target_value", "min_band", "max_band", "trade_amount",
-        "pool_start", "pool_end", "fee_rate", "purchase"
+        "pool_start", "pool_end", "fee_rate",
     ]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["purchase"] = df["purchase"].astype(str).fillna("").replace("nan", "")
 
     if path is None:
         _sheet_cache = df.copy()

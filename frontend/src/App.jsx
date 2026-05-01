@@ -320,8 +320,8 @@ export default function App() {
         <EquityChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <ValueLineChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <div className="grid-2">
-          <TradeTable title="매수 포인트 (BUY)" table={tradePoints?.buy_table} type="buy" unitSize={tradePoints?.unit_size} />
-          <TradeTable title="매도 포인트 (SELL)" table={tradePoints?.sell_table} type="sell" unitSize={tradePoints?.unit_size} />
+          <TradeTable title="매수 포인트 (BUY)" table={tradePoints?.buy_table} type="buy" unitSize={tradePoints?.unit_size} cycleTrade={portfolio} />
+          <TradeTable title="매도 포인트 (SELL)" table={tradePoints?.sell_table} type="sell" unitSize={tradePoints?.unit_size} cycleTrade={portfolio} />
         </div>
         <ProgressCard portfolio={portfolio} exchangeRate={exchangeRate} offset={weekIdx - (allWeeks.length - 1)} />
           </>
