@@ -11,14 +11,14 @@ export default function TradeTable({ title, table, type, unitSize, cycleTrade })
   const matchesDirection = (type === 'buy' && tradeShares > 0) || (type === 'sell' && tradeShares < 0);
   const executedShares = matchesDirection ? Math.abs(tradeShares) : 0;
   const executedRounds = unitSize > 0 ? Math.floor(executedShares / unitSize) : 0;
-  // 체결가가 있으면 해당 가격대 이미 체결된 row 제외
-  // 매도: 가격 ≤ max(체결가) skip / 매수: 가격 ≥ min(체결가) skip
-  const rows = (matchesDirection && executedPrices.length > 0)
-    ? allRows.filter((r) => {
-        if (type === 'sell') return r.price > Math.max(...executedPrices);
-        return r.price < Math.min(...executedPrices);
-      })
-    : allRows;
+  // 체결가가 있으면 해당 가격대를 이미 체결된 것으로 표시 (취소선)
+  // 매도: 가격 ≤ max(체결가) / 매수: 가격 ≥ min(체결가)
+  const isExecuted = (price) => {
+    if (!matchesDirection || executedPrices.length === 0) return false;
+    if (type === 'sell') return price <= Math.max(...executedPrices);
+    return price >= Math.min(...executedPrices);
+  };
+  const rows = allRows;
 
   return (
     <div className="card">
@@ -58,15 +58,19 @@ export default function TradeTable({ title, table, type, unitSize, cycleTrade })
               <td>—</td>
             </tr>
           )}
-          {rows && rows.map((p, i) => (
-            <tr key={i}>
-              <td></td>
-              <td>{fmt(p.shares_after, 0)}주</td>
-              <td style={{ color }}>{fmtUSD(p.price)}</td>
-              <td style={{ color: 'var(--text-muted)' }}>{fmtUSD(p.pool_after)}</td>
-              <td style={{ color, fontSize: '11px' }}>{type === 'sell' ? '+' : '-'}{fmtUSD(p.cumulative)}</td>
-            </tr>
-          ))}
+          {rows && rows.map((p, i) => {
+            const done = isExecuted(p.price);
+            const strike = done ? { textDecoration: 'line-through', opacity: 0.55 } : {};
+            return (
+              <tr key={i}>
+                <td style={strike}></td>
+                <td style={strike}>{fmt(p.shares_after, 0)}주</td>
+                <td style={{ color, ...strike }}>{fmtUSD(p.price)}</td>
+                <td style={{ color: 'var(--text-muted)', ...strike }}>{fmtUSD(p.pool_after)}</td>
+                <td style={{ color, fontSize: '11px', ...strike }}>{type === 'sell' ? '+' : '-'}{fmtUSD(p.cumulative)}</td>
+              </tr>
+            );
+          })}
           {(!rows || rows.length === 0) && !header && (
             <tr><td colSpan="5" style={{ color: 'var(--text-muted)', textAlign: 'center' }}>데이터 없음</td></tr>
           )}
