@@ -221,12 +221,23 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 pos = int((valuation - min_b) / band_range * 100) if band_range > 0 else 50
                 emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(st, "⚪")
                 msg = f"{emoji} **{st}** | {week['week_num']}주차 ({week.get('date_range', '')})\n"
-                msg += f"가격: ${week['price']:.2f} | 밴드 내 {pos}% 위치\n"
+                msg += f"TQQQ ${week['price']:.2f} | 밴드 내 {pos}% 위치\n"
                 avg_cost = week.get("avg_cost")
                 if avg_cost and avg_cost > 0:
                     profit = (week["price"] - avg_cost) * week["shares"]
                     profit_pct = (week["price"] - avg_cost) / avg_cost * 100
-                    msg += f"수익률: {profit:+,.0f}$ ({profit_pct:+.2f}%)"
+                    msg += f"수익률: {profit:+,.0f}$ ({profit_pct:+.2f}%)\n"
+                # 총손익
+                try:
+                    week_num_int = int(str(week["week_num"]).split("-")[0])
+                    total_invested = week_num_int * 100
+                    total_value = (week.get("valuation") or 0) + (week.get("pool") or 0)
+                    if total_invested > 0 and total_value > 0:
+                        total_profit = total_value - total_invested
+                        total_profit_pct = (total_value / total_invested) * 100
+                        msg += f"총손익: {total_profit:+,.0f}$ ({total_profit_pct:+.2f}%) | 원금: ${total_invested:,.0f}"
+                except (ValueError, TypeError):
+                    pass
                 return msg
             else:
                 # 현재 (실시간)
