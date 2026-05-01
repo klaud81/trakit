@@ -9,8 +9,9 @@ export default function TradeTable({ title, table, type, unitSize, cycleTrade })
   const tradeAmount = cycleTrade?.trade_amount || 0;
   const executedPrices = cycleTrade?.executed_prices || [];
   const matchesDirection = (type === 'buy' && tradeShares > 0) || (type === 'sell' && tradeShares < 0);
-  const executedShares = matchesDirection ? Math.abs(tradeShares) : 0;
-  const executedRounds = unitSize > 0 ? Math.floor(executedShares / unitSize) : 0;
+  // 체결가 개수가 곧 회차 수 (1 price = 1 round = unitSize 주)
+  const executedRounds = matchesDirection ? executedPrices.length : 0;
+  const executedShares = executedRounds * (unitSize || 0);
   // 체결가가 있으면 해당 가격대를 이미 체결된 것으로 표시 (취소선)
   // 매도: 가격 ≤ max(체결가) / 매수: 가격 ≥ min(체결가)
   const isExecuted = (price) => {
@@ -34,8 +35,10 @@ export default function TradeTable({ title, table, type, unitSize, cycleTrade })
           borderLeft: `3px solid ${color}`,
           borderRadius: '4px',
         }}>
-          이번 회차 {type === 'buy' ? '매수' : '매도'} <strong style={{ color }}>{executedRounds}회</strong> 진행됨
-          ({executedShares}주, {type === 'buy' ? '-' : '+'}${fmt(Math.abs(tradeAmount), 2)})
+          이번 회차 {type === 'buy' ? '매수' : '매도'}{' '}
+          <strong style={{ color }}>{executedRounds}회 × {unitSize}주</strong>
+          {' '}= {executedShares}주
+          {' '}({type === 'buy' ? '-' : '+'}${fmt(executedPrices.reduce((s, p) => s + p * unitSize, 0), 2)})
         </div>
       )}
       <table className="trade-table">
