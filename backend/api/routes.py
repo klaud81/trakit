@@ -18,8 +18,17 @@ from services.visitor_service import record_visit, get_visitor_stats
 from core.signal_calculator import generate_signal
 from services.discord_service import notify_signal, notify_refresh, send_discord
 from services.discord_bot import verify_signature, handle_command, register_slash_commands, PING, APPLICATION_COMMAND, PONG, CHANNEL_MESSAGE
+from services.goal_service import compute_goal_status
 
 router = APIRouter(prefix="/api")
+
+
+def _resolve_live_price(price: Optional[float]) -> Optional[float]:
+    """쿼리로 받은 price 가 None 이면 실시간 TQQQ 가격으로 대체."""
+    if price is not None:
+        return price
+    live = get_current_price()
+    return live["price"] if live["price"] > 0 else None
 
 
 @router.get("/health")
@@ -31,11 +40,7 @@ async def health():
 async def portfolio(price: Optional[float] = Query(None, description="실시간 가격 오버라이드")):
     """현재 포트폴리오 상태 (실시간 가격 자동 적용)"""
     try:
-        if price is None:
-            live = get_current_price()
-            if live["price"] > 0:
-                price = live["price"]
-        return get_current_portfolio(current_price=price)
+        return get_current_portfolio(current_price=_resolve_live_price(price))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -53,10 +58,7 @@ async def portfolio_history():
 async def signals(price: Optional[float] = Query(None)):
     """현재 매매 시그널 (실시간 가격 자동 적용)"""
     try:
-        if price is None:
-            live = get_current_price()
-            if live["price"] > 0:
-                price = live["price"]
+        price = _resolve_live_price(price)
         portfolio = get_current_portfolio(current_price=price)
         signal = generate_signal(portfolio, current_price=price)
         signal["profit"] = portfolio.get("profit")
@@ -204,13 +206,8 @@ async def goal(offset: int = Query(0, description="주차 오프셋 (0=현재 li
     offset<0: 시트의 V(target_value) + pool 기준
     """
     try:
-        from services.goal_service import compute_goal_status
-        from services.portfolio_service import get_current_portfolio, get_portfolio_history
-        from services.price_service import get_current_price
         if offset == 0:
-            live = get_current_price()
-            cp = live["price"] if live["price"] > 0 else None
-            p = get_current_portfolio(current_price=cp)
+            p = get_current_portfolio(current_price=_resolve_live_price(None))
             week_num = int(p["week_num"])
             actual = p["total_value"]
         else:
@@ -249,6 +246,14 @@ async def visitors():
 
 _NEWS_CACHE: dict = {}
 _NEWS_DETAIL_CACHE: dict = {}
+_NEWS_CACHE_MAX = 100  # 캐시 엔트리 상한 (메모리 폭주 방지)
+
+
+def _cache_evict(cache: dict, max_size: int) -> None:
+    """단순 LRU-like: 가장 오래된 엔트리부터 삭제."""
+    while len(cache) > max_size:
+        oldest = min(cache.items(), key=lambda kv: kv[1].get("ts", 0))[0]
+        del cache[oldest]
 
 
 @router.get("/news/detail/{news_id}")
@@ -266,6 +271,7 @@ async def news_detail(news_id: str):
         resp.raise_for_status()
         data = resp.json()
         _NEWS_DETAIL_CACHE[news_id] = {"ts": now, "data": data}
+        _cache_evict(_NEWS_DETAIL_CACHE, _NEWS_CACHE_MAX)
         return data
     except Exception as e:
         if entry:
@@ -300,6 +306,7 @@ async def news(
         resp.raise_for_status()
         data = resp.json()
         _NEWS_CACHE[key] = {"ts": now, "data": data}
+        _cache_evict(_NEWS_CACHE, _NEWS_CACHE_MAX)
         return data
     except Exception as e:
         if entry:
