@@ -217,6 +217,8 @@ export default function App() {
       trade_shares: tradeShares,
       trade_amount: isLastWeek ? prev?.trade_amount : (tradeShares ? Math.abs(tradeShares * week.price) : null),
       executed_prices: isLastWeek ? prev?.executed_prices : [],
+      vr_mode: week.vr_mode || prev?.vr_mode,
+      contribution: week.contribution != null ? week.contribution : prev?.contribution,
     }));
 
     // 시그널 재계산

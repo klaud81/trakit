@@ -222,6 +222,12 @@ def get_portfolio_history() -> list:
             "max_band": round(_safe_float(row["max_band"], 0), 2),
             "avg_cost": round(_safe_float(row["avg_cost"], 0), 2) if pd.notna(row["avg_cost"]) else None,
             "g": _safe_int(row["g"]),
+            "contribution": round(_safe_float(row["contribution"], 0), 2),
+            "vr_mode": (
+                "적립식 VR" if _safe_float(row["contribution"], 0) > 0
+                else "인출식 VR" if _safe_float(row["contribution"], 0) < 0
+                else "거치식 VR"
+            ),
         })
     return history
 
