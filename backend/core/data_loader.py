@@ -16,8 +16,15 @@ def _load_from_google_sheets() -> pd.DataFrame:
     """Google Sheets에서 데이터 로딩"""
     df = pd.read_csv(GOOGLE_SHEET_URL)
 
+    # 소비률 컬럼 (AN = 0-indexed 39) 별도 추출 (있을 때만)
+    if df.shape[1] > 39:
+        consumption_raw = df.iloc[:, 39].astype(str).str.replace(",", "", regex=False)
+        consumption = pd.to_numeric(consumption_raw, errors="coerce")
+    else:
+        consumption = pd.Series([None] * len(df))
+
     # 사용할 컬럼만 선택 (처음 20개)
-    df = df.iloc[:, :20]
+    df = df.iloc[:, :20].copy()
 
     # 컬럼명 매핑
     df.columns = [
@@ -27,6 +34,7 @@ def _load_from_google_sheets() -> pd.DataFrame:
         "target_value", "min_band", "max_band",
         "trade_amount", "pool_start", "pool_end", "fee_rate", "purchase"
     ]
+    df["consumption_rate"] = consumption.values
 
     # week_label에서 week_num 추출 ("142 주차" → "142", "205주차" → "205")
     df["week_num"] = df["week_label"].astype(str).str.extract(r'(\d+)')[0]
@@ -46,6 +54,7 @@ def _load_from_csv(path: Optional[Path] = None) -> pd.DataFrame:
         "target_value", "min_band", "max_band",
         "trade_amount", "pool_start", "pool_end", "fee_rate", "purchase"
     ]
+    df["consumption_rate"] = pd.NA
 
     return df
 
@@ -81,12 +90,14 @@ def load_base_sheet(path: Optional[Path] = None) -> pd.DataFrame:
     # week_num은 문자열로 보존 (204-1, 208-1 등 지원)
     df["week_num"] = df["week_num"].astype(str).str.strip()
 
+    # pool(J열) 은 천단위 콤마 입력 가능 ("6,135.75") → 콤마 제거 후 숫자 변환
+    df["pool"] = pd.to_numeric(df["pool"].astype(str).str.replace(",", "", regex=False), errors="coerce")
     # 나머지 숫자 변환 (purchase 는 콤마 구분 체결가 리스트일 수 있어 string 보존)
     numeric_cols = [
         "seq", "two_sqrt_g", "price", "shares", "avg_cost",
-        "dividend", "valuation", "pool", "contribution", "g",
+        "dividend", "valuation", "contribution", "g",
         "target_value", "min_band", "max_band", "trade_amount",
-        "pool_start", "pool_end", "fee_rate",
+        "pool_start", "pool_end", "fee_rate", "consumption_rate",
     ]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")

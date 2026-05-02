@@ -119,6 +119,17 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
     min_band = _safe_float(last["min_band"], 0)
     max_band = _safe_float(last["max_band"], 0)
     g = _safe_int(last["g"], 11)
+    consumption_rate = _safe_float(last.get("consumption_rate"), 0.5)
+    if consumption_rate is None or consumption_rate <= 0:
+        consumption_rate = 0.5
+    # 적립금 부호로 VR 모드 판별
+    contribution = _safe_float(last["contribution"], 0)
+    if contribution > 0:
+        vr_mode = "적립식 VR"
+    elif contribution < 0:
+        vr_mode = "인출식 VR"
+    else:
+        vr_mode = "거치식 VR"
     total_value = valuation + pool
 
     # 목표 대비 진행률
@@ -177,6 +188,9 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
         "trade_shares": trade_shares,
         "trade_amount": round(trade_amount, 2) if trade_amount else None,
         "executed_prices": executed_prices,
+        "consumption_rate": consumption_rate,
+        "contribution": round(contribution, 2) if contribution else 0,
+        "vr_mode": vr_mode,
         "total_invested": total_invested,
         "total_profit": total_profit,
         "total_profit_pct": total_profit_pct,

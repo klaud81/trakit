@@ -8,6 +8,8 @@ ProgressCard / Discord /goal 가 공통으로 사용.
 - 시트에 없는 미래 cycle 은 마지막 값에서 동일 패턴으로 연장
 """
 from __future__ import annotations
+import csv
+import io
 import logging
 import requests
 from datetime import datetime
@@ -37,17 +39,28 @@ def _load_planned_map() -> dict[int, float]:
     try:
         r = requests.get(GOOGLE_SHEET_URL, timeout=15)
         r.raise_for_status()
-        for line in r.text.splitlines()[1:]:
-            cols = line.split(",")
-            if len(cols) < 5 or not cols[0].strip().isdigit():
+        r.encoding = "utf-8"  # Google Sheets CSV 응답이 ISO-8859-1 로 잘못 잡혀 한글 헤더 깨짐
+        # csv.reader 로 quoted 필드("86,797.17") 안 쪼개지게 처리
+        reader = csv.reader(io.StringIO(r.text))
+        rows = list(reader)
+        # 헤더에서 "계획" 컬럼 인덱스 찾기 (시트에 컬럼 추가/삭제돼도 안전)
+        plan_idx = None
+        for i, h in enumerate(rows[0]):
+            if (h or "").strip() == "계획":
+                plan_idx = i
+                break
+        if plan_idx is None:
+            logger.warning("'계획' 컬럼 헤더 없음")
+            return {}
+        for cols in rows[1:]:
+            if len(cols) <= plan_idx or not cols[0].strip().isdigit():
                 continue
             week_str = (cols[1] or "").strip().split()[0]
             if not week_str.isdigit():
                 continue
             try:
                 week_num = int(week_str)
-                plan_val = float(cols[-3])
-                # 같은 week_num이 여러 번 나오면 (조정 행) 마지막 값 사용
+                plan_val = float(cols[plan_idx].replace(",", ""))
                 planned_map[week_num] = plan_val
             except (ValueError, IndexError):
                 continue

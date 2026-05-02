@@ -126,19 +126,20 @@ def calculate_buy_points(
     min_band: float,
     pool: float,
     unit_size: int = 10,
+    consumption_rate: float = 0.5,
 ) -> list:
     """매수 포인트 테이블 생성
 
     최소값 기준으로 unit_size개씩 매수.
-    pool이 초기값의 1/2 이하가 되면 중단.
+    pool 의 consumption_rate 만큼 소비하면 중단 (기본 50%).
     """
     points = []
     remaining_pool = pool
-    half_pool = pool / 2
+    threshold = pool * (1 - consumption_rate)  # 남겨둘 최소 잔액
     shares = current_shares
     cumulative = 0.0
 
-    while remaining_pool > half_pool:
+    while remaining_pool > threshold:
         buy_price = round(min_band / shares, 2)
         cost = round(buy_price * unit_size, 2)
         if remaining_pool < cost:
