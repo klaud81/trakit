@@ -314,6 +314,16 @@ async def news(
         raise HTTPException(status_code=502, detail=f"뉴스 로드 실패: {e}")
 
 
+@router.post("/discord/register")
+async def discord_register():
+    """Discord 슬래시 명령어 강제 재등록 (수동 트리거)"""
+    try:
+        register_slash_commands()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/discord/interactions")
 async def discord_interactions(request: Request):
     """Discord 슬래시 명령어 처리 (Interactions Endpoint)"""

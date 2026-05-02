@@ -312,24 +312,37 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 p = get_current_portfolio(current_price=live["price"] if live["price"] > 0 else None)
                 vr_mode = p.get('vr_mode', '')
                 vr_label = f" · _{vr_mode}_" if vr_mode else ""
-                msg = f"📊 **포트폴리오** ({p['week_num']}주차 · {p.get('date_range', '')}{vr_label})\n"
-                msg += f"평가금: ${p['valuation']:,.2f}\n"
-                # 회차 거래: 체결가 개수 × 단위주
-                executed = p.get("executed_prices") or []
-                trade_amt_sign = p.get("trade_amount") or 0
+                # Signal 표시
+                from core.signal_calculator import generate_signal
+                cp = live["price"] if live["price"] > 0 else None
+                signal = generate_signal(p, current_price=cp)
+                signal_arrow = {"BUY": "🔵 ▼ 매수", "SELL": "🔴 ▲ 매도", "HOLD": "🟢 ━ 홀드"}.get(signal["signal_type"], "━")
+                # KRW 환산
+                rate = p.get("exchange_rate") or 1400
+                val_krw = round(p["valuation"] * rate)
+                # 이전 회차 매매 (PortfolioCard 와 동일 로직)
+                from services.portfolio_service import get_portfolio_history
+                hist = get_portfolio_history()
                 trade_info = ""
-                if executed:
-                    from services.trade_calculator import get_trade_points
-                    unit = get_trade_points(current_price=live["price"] if live["price"] > 0 else None).get("unit_size", 0)
-                    label = "매도" if trade_amt_sign > 0 else "매수"
-                    rounds = len(executed)
-                    shares_done = rounds * unit
-                    amount = sum(executed) * unit
-                    trade_info = f" ({label} {rounds}회 × {unit}주 = {shares_done}주 · ${amount:,.2f})"
-                msg += f"보유: {p['shares']}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f}{trade_info}\n"
-                msg += f"Pool: ${p['pool']:,.2f}\n"
-                msg += f"총 자산: **${p['total_value']:,.2f}**\n"
-                msg += f"목표 달성률: {p['goal_progress']:.2f}%"
+                if len(hist) >= 2:
+                    prev = hist[-2]
+                    prev_executed = prev.get("executed_prices") or []
+                    delta = p["shares"] - (prev.get("shares") or p["shares"])
+                    if prev_executed and delta != 0:
+                        unit_each = round(abs(delta) / len(prev_executed)) if len(prev_executed) > 0 else 0
+                        rounds = len(prev_executed)
+                        units = abs(delta)
+                        money = sum(prev_executed) * unit_each
+                        direction = "매수" if delta > 0 else "매도"
+                        sign = "-" if delta > 0 else "+"
+                        trade_info = f"\n이전 회차: {direction} {rounds}회, 총 {units}주 {direction}, 총거래액 {sign}${money:,.2f}"
+
+                msg = f"📊 **포트폴리오** | {p['week_num']}주차 ({p.get('date_range', '')}){vr_label}\n"
+                msg += f"{signal_arrow}\n"
+                msg += f"평가금: **${p['valuation']:,.2f}** ({val_krw:,}원)\n"
+                msg += f"보유: {p['shares']:,}주 · 평단 ${p.get('avg_cost', 0) or 0:.2f} _[환율 {rate:,.0f}원]_{trade_info}\n"
+                msg += f"Pool: ${p['pool']:,.2f} | Target: ${p['target_value']:,.2f}\n"
+                msg += f"Total Value: **${p['total_value']:,.2f}** · 목표 {p['goal_progress']:.2f}%"
                 return msg
 
         elif command_name == "quote":
