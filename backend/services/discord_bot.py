@@ -74,6 +74,10 @@ def register_slash_commands():
             "options": [{"name": "offset", "description": "주차 오프셋 (0=현재, -1=이전, -2=2주전...)", "type": 4, "required": False}],
         },
         {
+            "name": "trade",
+            "description": "매수/매도 tier 테이블 (회차 체결가 표시)",
+        },
+        {
             "name": "refresh",
             "description": "Google Sheets 데이터 갱신",
         },
@@ -183,7 +187,8 @@ def _build_help_text() -> str:
         "`/quote <symbol>` — 개별 티커 실시간 가격 (예: `/quote symbol:NVDA`)\n"
         f"`/watch` — 관심 티커 목록 [{tickers}]\n"
         "`/rate` — USD/KRW 환율\n"
-        "`/goal [offset]` — 목표 진행률 + 계획대비 시간차"
+        "`/goal [offset]` — 목표 진행률 + 계획대비 시간차\n"
+        "`/trade` — 매수/매도 tier 테이블 (체결가 ✓ 표시)"
     )
 
 
@@ -384,6 +389,42 @@ def handle_command(command_name: str, options: dict = None) -> str:
             msg += f"전체 진행: **{g['goal_progress']:.2f}%** (${g['actual_value']:,.0f} / ${g['goal_usd']:,.0f})\n"
             msg += f"계획 대비: **{g['plan_pct']:.2f}%** · {arrow} **{g['time_label']}**\n"
             msg += f"남은: {g['remaining_cycles']}회 ({remaining_str}) · 목표 560주차"
+            return msg
+
+        elif command_name == "trade":
+            from services.portfolio_service import get_current_portfolio
+            from services.price_service import get_current_price
+            from services.trade_calculator import get_trade_points
+            live = get_current_price()
+            cp = live["price"] if live["price"] > 0 else None
+            p = get_current_portfolio(current_price=cp)
+            tp = get_trade_points(current_price=cp)
+            unit = tp.get("unit_size", 0)
+            executed = p.get("executed_prices") or []
+            trade_amt = p.get("trade_amount") or 0
+            buy_done = set(executed) if trade_amt < 0 else set()
+            sell_done = set(executed) if trade_amt > 0 else set()
+
+            msg = f"📊 **매매 테이블** | {p['week_num']}주차\n"
+            msg += f"보유 {p['shares']}주 · pool ${p['pool']:,.2f} · 단위 {unit}주\n"
+
+            buy_rows = tp["buy_table"]["rows"]
+            if buy_rows:
+                msg += f"\n🔵 **매수** (최소 ${p['min_band']:,.0f})\n"
+                for i, r in enumerate(buy_rows, 1):
+                    mark = " ✓" if r["price"] in buy_done else ""
+                    msg += f"`{i}차` ${r['price']}/주 → {r['shares_after']}주, -${r['amount']:,.2f}{mark}\n"
+
+            sell_rows = tp["sell_table"]["rows"]
+            if sell_rows:
+                msg += f"\n🔴 **매도** (최대 ${p['max_band']:,.0f})\n"
+                for i, r in enumerate(sell_rows, 1):
+                    mark = " ✓" if r["price"] in sell_done else ""
+                    msg += f"`{i}차` ${r['price']}/주 → {r['shares_after']}주, +${r['amount']:,.2f}{mark}\n"
+
+            if executed:
+                direction = "매도" if trade_amt > 0 else "매수"
+                msg += f"\n_이번 회차 체결: {direction} " + ", ".join(f"${ep}" for ep in executed) + "_"
             return msg
 
         elif command_name == "refresh":
