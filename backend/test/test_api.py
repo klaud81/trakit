@@ -208,3 +208,86 @@ class TestRoot:
         data = resp.json()
         assert "message" in data
         assert data["message"] == "Trakit API"
+
+
+class TestPortfolioExtras:
+    """portfolio 응답에 새로 노출된 필드 검증"""
+
+    def test_portfolio_has_vr_mode(self, client):
+        resp = client.get("/api/portfolio")
+        data = resp.json()
+        assert "vr_mode" in data
+        assert data["vr_mode"] in ("적립식 VR", "거치식 VR", "인출식 VR")
+        assert "contribution" in data
+
+    def test_portfolio_has_consumption_rate(self, client):
+        resp = client.get("/api/portfolio")
+        data = resp.json()
+        assert "consumption_rate" in data
+        # 미설정/0 은 기본 0.5 fallback, 설정값은 0~1 사이여야 의미 있음
+        assert data["consumption_rate"] is not None
+        assert 0 < data["consumption_rate"] <= 1
+
+    def test_portfolio_has_executed_prices(self, client):
+        resp = client.get("/api/portfolio")
+        data = resp.json()
+        assert "executed_prices" in data
+        assert isinstance(data["executed_prices"], list)
+        for p in data["executed_prices"]:
+            assert isinstance(p, (int, float))
+
+    def test_portfolio_pool_parses_thousand_separator(self, client):
+        """시트 pool 셀에 천단위 콤마("6,135.75") 가 있어도 숫자로 파싱"""
+        resp = client.get("/api/portfolio")
+        data = resp.json()
+        assert isinstance(data["pool"], (int, float))
+
+
+class TestPortfolioHistoryExtras:
+    def test_history_includes_vr_mode(self, client):
+        resp = client.get("/api/portfolio/history")
+        data = resp.json()
+        assert len(data) > 0
+        last = data[-1]
+        assert "vr_mode" in last
+        assert last["vr_mode"] in ("적립식 VR", "거치식 VR", "인출식 VR")
+        assert "contribution" in last
+
+
+class TestGoal:
+    def test_goal_current(self, client):
+        """GET /api/goal - 현재 주차 목표 진행률"""
+        resp = client.get("/api/goal")
+        assert resp.status_code == 200
+        data = resp.json()
+        for k in ("week_num", "actual_value", "planned", "plan_pct", "goal_progress",
+                  "weeks_diff", "time_label", "target_week", "weeks_remaining",
+                  "years_left", "weeks_left_in_year", "remaining_cycles", "rate"):
+            assert k in data, f"missing field: {k}"
+        # 시트의 "계획" 컬럼이 정상적으로 파싱되어야 함 (1.03 같은 ratio 값이 들어가면 안됨)
+        assert data["planned"] > 1000, "planned 가 비정상적으로 작음 (헤더 매칭 실패 가능)"
+        # plan_pct 가 100% 근처여야 의미 있음 (수백~수만% 면 파싱 오류)
+        assert 1 < data["plan_pct"] < 1000, "plan_pct 비정상 (계획 컬럼 파싱 오류 의심)"
+
+    def test_goal_offset_negative(self, client):
+        """GET /api/goal?offset=-1 - 이전 주차"""
+        resp = client.get("/api/goal", params={"offset": -1})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["week_num"] > 0
+        assert data["planned"] > 1000
+
+
+class TestTradePointsConsumptionRate:
+    def test_trade_points_respects_consumption_rate(self, client):
+        """매수 누적이 pool × consumption_rate 한도 안에서 멈춤"""
+        port = client.get("/api/portfolio").json()
+        tp = client.get("/api/trade-points").json()
+        rate = port.get("consumption_rate") or 0.5
+        pool_start = tp["buy_table"]["header"]["pool"]
+        rows = tp["buy_table"]["rows"]
+        if not rows or pool_start <= 0:
+            return  # pool 0 이거나 매수 불가 시 skip
+        cumulative = rows[-1]["cumulative"]
+        # 마지막 매수까지의 누적이 pool × consumption_rate 보다 약간만 넘거나 그 이하
+        assert cumulative <= pool_start * rate + (rows[-1]["amount"] * 1.1)
