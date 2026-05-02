@@ -49,7 +49,11 @@ cd backend && python -m pytest test/ -v
 - 뉴스 프록시: `/api/news`, `/api/news/detail/{id}` — `api.saveticker.com/api/news/list|detail` 을 서버측에서 호출 (브라우저 직접 호출 시 CORS 차단됨). 목록 60초 / 상세 5분 메모리 캐시. 실패 시 stale 캐시 반환
 - saveticker 필터 파라미터: `label_group` (2=SAVE, 3=로이터, 4=파이낸셜뉴스), `label_name` (SAVE 하위: 1=전체, 2=종합, 3=속보, 4=정보, 5=분석, 6=암호화폐, 7=경제지표, 8=에너지, 9=연준, 10=일정, 11=투자의견), `sort=created_at_desc`
 - `goal_service.py`: 시트 raw CSV 에서 "계획" 컬럼(끝에서 3번째)을 읽어 week_num→planned 맵을 5분 캐시. 시트 마지막 주차 이후는 `(V_prev+200) × ratio` 로 560주차까지 연장. `compute_goal_status(week_num, actual)` 가 계획대비 %, 시간차, 남은 횟수/년수 계산해 dict 반환 → `/api/goal` 과 Discord `/goal` 이 공유
-- 시트의 `구매` 컬럼(20번째)은 이번 회차에 체결된 가격을 콤마 구분 리스트로 기록 (예: `"63.83, 64.12,"`). `data_loader` 가 string 으로 보존하고 `portfolio_service` 가 파싱 → `/api/portfolio` 의 `executed_prices` 필드로 노출. `trade_amount` 부호로 매수/매도 방향 판별 (양수=매도, 음수=매수)
+- 시트의 `구매` 컬럼(T열)은 이번 회차에 체결된 가격을 **`|` 구분** 리스트로 기록 (예: `"63.83 | 64.12"`). `data_loader` 가 string 보존 → `portfolio_service._parse_executed_prices()` 가 파싱 → `/api/portfolio` 와 `/api/portfolio/history` 의 `executed_prices` 필드로 노출. `trade_amount` 부호로 매수/매도 방향 판별 (양수=매도, 음수=매수)
+- 시트의 `pool 소비률` 컬럼(AN열, idx 39)은 매수 시 pool 의 몇 % 까지 사용할지 (예: 0.4 = 40%). NA / 0 이면 기본 0.5. `portfolio.consumption_rate` 노출, `rebalancing_engine.calculate_buy_points` 가 사용
+- 시트의 `적립금` 컬럼(K열) 부호로 VR 모드: 양수=`적립식 VR`, 0=`거치식 VR`, 음수=`인출식 VR`. `portfolio.vr_mode` 노출 (history 행에도 포함)
+- 시트의 `pool` 컬럼(J열) 은 천단위 콤마 입력 가능 (`"6,135.75"`) → `data_loader` 에서 콤마 제거 후 숫자 변환
+- 시트의 `계획` 컬럼은 `goal_service` 가 헤더 이름으로 위치 찾음 (오른쪽에 컬럼 추가돼도 안전). Google Sheets CSV 응답이 ISO-8859-1 로 잘못 잡혀 한글 헤더 깨지므로 `r.encoding = "utf-8"` 강제
 
 ### 프론트엔드
 - `week_num`은 숫자로 변환하여 사용 (차트 ReferenceLine 매칭)
@@ -65,6 +69,7 @@ cd backend && python -m pytest test/ -v
 - ProgressCard 계획 트래킹: `/api/goal?offset=N` 호출 (offset=0 라이브 가격, 음수는 시트의 `V(target_value) + pool` 사용). 계획값은 시트의 "계획" 컬럼 직접 추출 (조정 행 포함 → 단순 1.03/1.0 트래젝토리보다 정확). 시간차 막대 ±26주(반년) 풀스케일
 - TradeTable: `cycleTrade` (= portfolio) 의 `executed_prices` / `trade_shares` / `trade_amount` 로 이번 회차 체결 표시. 매도면 가격 ≤ max(체결가) 행, 매수면 가격 ≥ min(체결가) 행을 취소선(line-through, opacity 0.55) 처리. 카드 상단에 회차 진행 배너(횟수·체결 금액) 추가
 - Discord `/signal` 도 동일 로직: 체결가에 해당하는 tier 는 다음 매수/매도 후보에서 제외하고 "이번 회차 매도 체결: $X" 라인으로 별도 표시
+- Discord 명령어: `/help`, `/price`, `/quote symbol:`, `/signal [offset]`, `/portfolio [offset]`, `/goal [offset]`, `/trade` (매수/매도 tier 테이블, 체결가 ✓), `/watch`, `/rate`, `/refresh`. 모두 서버 시작 시 자동 등록 (`register_slash_commands`), 강제 재등록은 `POST /api/discord/register`
 - 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
 - 뉴스 라우트(`#news`)에서는 Header / 후원하기 카드 숨김, 방문자 통계는 모든 라우트에 표시
 - NewsPanel 필터: SOURCE_TABS (전체/SAVE/로이터/파이낸셜뉴스) 는 서버측 `label_group` 파라미터로 refetch. CATEGORIES_BY_TAB 은 클라이언트측 `tag_names` 필터 (전체 tab의 '분석' pill은 `분석` OR `시황/분석` 매칭). SAVE_CATEGORIES 는 서버측 `label_name` 파라미터로 refetch
@@ -93,6 +98,7 @@ cd backend && python -m pytest test/ -v
 | GET | `/api/config` | 프론트엔드 설정 (갱신 시간대/간격) |
 | GET | `/api/exchange-rate` | USD/KRW 환율 (KST 17시 이후 갱신) |
 | GET | `/api/goal` | 목표 진행률 + 계획대비 + 시간차 (`?offset=0` 현재 라이브, `<0` 시트 V+pool) |
+| POST | `/api/discord/register` | Discord 슬래시 명령어 강제 재등록 (수동 트리거) |
 | GET | `/api/news` | 뉴스 목록 프록시 (saveticker, 60초 캐시). 파라미터: `page`, `page_size`, `label_group`, `label_name`, `sort` |
 | GET | `/api/news/detail/{id}` | 뉴스 상세 프록시 (saveticker, 5분 캐시) |
 

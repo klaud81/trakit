@@ -291,3 +291,62 @@ class TestTradePointsConsumptionRate:
         cumulative = rows[-1]["cumulative"]
         # 마지막 매수까지의 누적이 pool × consumption_rate 보다 약간만 넘거나 그 이하
         assert cumulative <= pool_start * rate + (rows[-1]["amount"] * 1.1)
+
+
+class TestDiscordCommands:
+    """Discord 슬래시 명령어 핸들러 검증"""
+
+    def test_signal_current(self):
+        from services.discord_bot import handle_command
+        msg = handle_command("signal")
+        assert "주차" in msg
+        assert "TQQQ" in msg
+        assert "매수:" in msg and "매도:" in msg
+        assert "총손익:" in msg
+
+    def test_signal_offset_negative(self):
+        from services.discord_bot import handle_command
+        msg = handle_command("signal", {"offset": -1})
+        assert "주차" in msg
+        assert "TQQQ" in msg
+        assert "총손익:" in msg
+
+    def test_portfolio_current_layout(self):
+        """/portfolio 가 PortfolioCard 스타일 모두 포함"""
+        from services.discord_bot import handle_command
+        msg = handle_command("portfolio")
+        assert "포트폴리오" in msg
+        assert "VR" in msg  # 적립식/거치식/인출식 VR 중 하나
+        assert "평가금:" in msg and "원)" in msg  # KRW 환산
+        assert "보유:" in msg and "평단" in msg
+        assert "Pool:" in msg and "Target:" in msg
+        assert "Total Value:" in msg
+
+    def test_goal_includes_plan_pct_and_time(self):
+        from services.discord_bot import handle_command
+        msg = handle_command("goal")
+        assert "목표 진행률" in msg
+        assert "계획 대비:" in msg
+        assert "남은:" in msg
+
+    def test_trade_lists_buy_and_sell_tiers(self):
+        from services.discord_bot import handle_command
+        msg = handle_command("trade")
+        assert "매매 테이블" in msg
+        assert "매수" in msg and "매도" in msg
+        assert "보유" in msg and "pool" in msg
+
+    def test_help_lists_all_commands(self):
+        from services.discord_bot import handle_command
+        msg = handle_command("help")
+        for cmd in ("/help", "/price", "/signal", "/portfolio", "/quote", "/watch",
+                    "/rate", "/goal", "/trade"):
+            assert cmd in msg, f"missing in help: {cmd}"
+
+
+class TestDiscordRegister:
+    def test_register_endpoint_returns_ok(self, client):
+        """POST /api/discord/register - 슬래시 명령어 강제 재등록"""
+        resp = client.post("/api/discord/register")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
