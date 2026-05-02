@@ -251,9 +251,7 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(signal["signal_type"], "⚪")
                 date_range = portfolio.get('date_range', '')
                 label = _session_label(live)
-                vr_mode = portfolio.get('vr_mode', '')
-                vr_label = f" · _{vr_mode}_" if vr_mode else ""
-                msg = f"{emoji} **{signal['signal_type']}** | {portfolio['week_num']}주차 ({date_range}){vr_label}\n"
+                msg = f"{emoji} **{signal['signal_type']}** | {portfolio['week_num']}주차 ({date_range})\n"
                 msg += f"TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%){label}\n"
                 msg += f"{signal['recommendation']}\n"
                 if portfolio.get("profit") is not None:

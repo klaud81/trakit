@@ -216,7 +216,7 @@ export default function App() {
       total_value: total, goal_progress: Math.round(goalPct * 100) / 100,
       trade_shares: tradeShares,
       trade_amount: isLastWeek ? prev?.trade_amount : (tradeShares ? Math.abs(tradeShares * week.price) : null),
-      executed_prices: isLastWeek ? prev?.executed_prices : [],
+      executed_prices: week.executed_prices || (isLastWeek ? prev?.executed_prices : []),
       vr_mode: week.vr_mode || prev?.vr_mode,
       contribution: week.contribution != null ? week.contribution : prev?.contribution,
     }));
@@ -322,7 +322,7 @@ export default function App() {
         {route === 'tqqq' && (
           <>
         <div className="grid-2">
-          <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} />
+          <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} tradePoints={tradePoints} />
           <BandCard portfolio={portfolio} />
         </div>
         <SignalPanel signal={signal} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} cycleTrade={portfolio} />

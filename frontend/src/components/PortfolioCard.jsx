@@ -1,10 +1,24 @@
 import { fmt, fmtUSD } from '../utils/format';
 
-export default function PortfolioCard({ portfolio, signal, prevWeek, exchangeRate }) {
+export default function PortfolioCard({ portfolio, signal, prevWeek, exchangeRate, tradePoints }) {
   if (!portfolio) return null;
   const signalType = signal ? signal.signal_type : 'HOLD';
   const rate = exchangeRate?.rate || 1400;
   const valKrw = Math.round(portfolio.valuation * rate);
+
+  // 회차 매매: 이전 주차의 회차기록(executed_prices) × 이전 주차 시점의 거래단위로 표시
+  // (= 현재 주차 시작 직전에 어떤 매매가 있었는지)
+  const prevExecuted = prevWeek?.executed_prices || [];
+  const prevShares = prevWeek?.shares || portfolio.shares;
+  const sharesDelta = portfolio.shares - prevShares;
+  const tradeDir = sharesDelta > 0 ? 'buy' : sharesDelta < 0 ? 'sell' : null;
+  // 단위 = |shares delta| / 체결가 개수 (체결가가 N회면 회당 |delta|/N 주)
+  const unit = (prevExecuted.length > 0 && sharesDelta !== 0)
+    ? Math.round(Math.abs(sharesDelta) / prevExecuted.length)
+    : 0;
+  const tradeRounds = prevExecuted.length;
+  const tradeUnits = Math.abs(sharesDelta);
+  const tradeMoney = prevExecuted.reduce((s, p) => s + p * unit, 0);
 
 
   const vrColor = portfolio.vr_mode === '적립식 VR' ? '#2e7d32'
@@ -30,9 +44,9 @@ export default function PortfolioCard({ portfolio, signal, prevWeek, exchangeRat
       </div>
       <div className="portfolio-shares">
         {fmt(portfolio.shares, 0)}주 보유 · 평단 {fmtUSD(portfolio.avg_cost)}
-        {portfolio.trade_shares != null && portfolio.trade_shares !== 0 && (
-          <span className={portfolio.trade_shares > 0 ? 'price-up' : 'price-down'} style={{ marginLeft: '8px', fontSize: '12px' }}>
-            ({portfolio.trade_shares > 0 ? '매수' : '매도'} {Math.abs(portfolio.trade_shares)}주 · {fmtUSD(portfolio.trade_amount)})
+        {tradeRounds > 0 && (
+          <span className={tradeDir === 'buy' ? 'price-up' : 'price-down'} style={{ marginLeft: '8px', fontSize: '12px' }}>
+            ({tradeDir === 'buy' ? '매수' : '매도'} {tradeRounds}회, 총 {tradeUnits}주 {tradeDir === 'buy' ? '매수' : '매도'}, 총거래액 {tradeDir === 'buy' ? '-' : '+'}{fmtUSD(tradeMoney)})
           </span>
         )}
         <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>

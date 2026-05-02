@@ -5,10 +5,15 @@ export default function SignalPanel({ signal, livePrice, priceRefreshing, tradeP
   const unitSize = tradePoints?.unit_size;
   const profit = signal.profit;
   const profitPct = signal.profit_pct;
+  // 현재 row 의 회차기록(executed_prices) + 거래단위(unit_size)
   const executedPrices = cycleTrade?.executed_prices || [];
   const tradeAmount = cycleTrade?.trade_amount || 0;
   const cycleDirection = tradeAmount > 0 ? '매도' : tradeAmount < 0 ? '매수' : null;
   const cycleColor = tradeAmount > 0 ? 'var(--sell)' : 'var(--buy)';
+  const cycleRounds = executedPrices.length;
+  const cycleUnit = unitSize || 0;
+  const cycleShares = cycleRounds * cycleUnit;
+  const cycleMoney = executedPrices.reduce((s, p) => s + p * cycleUnit, 0);
   // 이번 회차 체결가 적용: 이미 처리된 tier 제외하고 다음 tier 픽
   const allBuyRows = tradePoints?.buy_table?.rows || [];
   const allSellRows = tradePoints?.sell_table?.rows || [];
@@ -72,11 +77,13 @@ export default function SignalPanel({ signal, livePrice, priceRefreshing, tradeP
           </span>
         </div>
       )}
-      {executedPrices.length > 0 && cycleDirection && (
+      {cycleRounds > 0 && cycleDirection && (
         <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
           이번 회차 요약:{' '}
-          <span style={{ color: cycleColor, fontWeight: 600 }}>{cycleDirection}</span>:{' '}
-          {executedPrices.map((p) => `$${p}`).join(', ')}
+          <span style={{ color: cycleColor, fontWeight: 700 }}>
+            {cycleDirection} {cycleRounds}회, 총 {cycleShares}주 {cycleDirection},
+            {' '}총거래액 {tradeAmount > 0 ? '+' : '-'}{fmt(cycleMoney)}$
+          </span>
         </div>
       )}
     </div>

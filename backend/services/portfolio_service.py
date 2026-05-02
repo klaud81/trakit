@@ -73,6 +73,29 @@ def _week_num_int(val):
     return int(m.group(1)) if m else 0
 
 
+def _parse_executed_prices(raw) -> list:
+    """구매 컬럼 ("63.83 | 64.12 | ...") 을 float 리스트로 파싱.
+
+    구분자는 `|` 고정 (천단위 콤마와 충돌 방지).
+    """
+    if raw is None:
+        return []
+    s = str(raw).strip()
+    if not s or s.lower() == "nan":
+        return []
+    parts = s.split("|")
+    out = []
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        try:
+            out.append(float(p))
+        except ValueError:
+            pass
+    return out
+
+
 def _filter_by_date(df: pd.DataFrame) -> pd.DataFrame:
     """현재 날짜 기준으로 종료일이 지나지 않은 미래 데이터 제외 (진행 중 주차는 포함)"""
     today = date.today()
@@ -157,17 +180,7 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
         trade_shares = shares - prev_shares  # 양수=매수, 음수=매도
 
     # 이번 회차 체결가 리스트 (구매 컬럼: "63.83, 64.12, ..." 형태)
-    purchase_str = str(last.get("purchase", "")).strip()
-    executed_prices = []
-    if purchase_str and purchase_str.lower() != "nan":
-        for p in purchase_str.split(","):
-            p = p.strip()
-            if not p:
-                continue
-            try:
-                executed_prices.append(float(p))
-            except ValueError:
-                pass
+    executed_prices = _parse_executed_prices(last.get("purchase"))
 
     return {
         "week_num": _week_str(last["week_num"]),
@@ -228,6 +241,7 @@ def get_portfolio_history() -> list:
                 else "인출식 VR" if _safe_float(row["contribution"], 0) < 0
                 else "거치식 VR"
             ),
+            "executed_prices": _parse_executed_prices(row.get("purchase")),
         })
     return history
 
