@@ -8,7 +8,7 @@ import yfinance as yf
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
-from config import SYMBOL, PRICE_FETCH_ALWAYS, EXCHANGE_MAP, DAYTIME_EXCD, DEFAULT_EXCHANGE, BACKEND_DIR
+from config import SYMBOL, PRICE_FETCH_ALWAYS, EXCHANGE_MAP, DAYTIME_EXCD, DEFAULT_EXCHANGE, DATA_DIR
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ KST = timezone(timedelta(hours=9))
 # 재시작 후에도 만료 전이면 그대로 재사용 → KIS 의 토큰 발급 SMS 알림 최소화
 _kis_token: Optional[str] = None
 _kis_token_expires: Optional[datetime] = None
-_KIS_TOKEN_FILE = BACKEND_DIR / ".kis_token.json"
+_KIS_TOKEN_FILE = DATA_DIR / ".kis_token.json"  # 영속 볼륨에 저장 (Docker 재배포 후에도 유지)
 
 
 def _load_kis_token_from_disk() -> bool:

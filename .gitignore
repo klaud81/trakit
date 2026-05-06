@@ -8,5 +8,6 @@ dist/
 .env.*
 .kis_token.json
 backend/.kis_token.json
+data/.kis_token.json
 .omc/
 =0.2.40
