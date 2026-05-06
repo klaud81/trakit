@@ -350,3 +350,53 @@ class TestDiscordRegister:
         resp = client.post("/api/discord/register")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
+
+
+class TestKISTokenPersistence:
+    """KIS 접근토큰 디스크 캐시 검증"""
+
+    def test_save_and_load_round_trip(self, tmp_path, monkeypatch):
+        from datetime import datetime, timedelta
+        import services.price_service as ps
+        token_file = tmp_path / ".kis_token.json"
+        monkeypatch.setattr(ps, "_KIS_TOKEN_FILE", token_file)
+        ps._kis_token = None
+        ps._kis_token_expires = None
+        future = datetime.now() + timedelta(hours=10)
+        ps._save_kis_token_to_disk("DUMMY-TOKEN", future)
+        assert token_file.exists()
+        ps._kis_token = None
+        ps._kis_token_expires = None
+        assert ps._load_kis_token_from_disk() is True
+        assert ps._kis_token == "DUMMY-TOKEN"
+
+    def test_expired_token_not_loaded(self, tmp_path, monkeypatch):
+        from datetime import datetime, timedelta
+        import services.price_service as ps
+        token_file = tmp_path / ".kis_token.json"
+        monkeypatch.setattr(ps, "_KIS_TOKEN_FILE", token_file)
+        ps._save_kis_token_to_disk("EXPIRED", datetime.now() - timedelta(hours=1))
+        ps._kis_token = None
+        ps._kis_token_expires = None
+        assert ps._load_kis_token_from_disk() is False
+        assert ps._kis_token is None
+
+
+class TestKISExchangeDiscovery:
+    """EXCHANGE_MAP 에 없는 심볼 처리"""
+
+    def test_fetch_kis_returns_none_without_token(self, monkeypatch):
+        """토큰 없으면 NAS→NYS→AMS 시도해도 None"""
+        import services.price_service as ps
+        monkeypatch.setattr(ps, "_get_kis_token", lambda: None)
+        ps._EXCD_DISCOVERY.clear()
+        assert ps._fetch_kis("UNKNOWN_TICKER_XYZ") is None
+
+    def test_quote_unknown_symbol_returns_data(self, client):
+        """매핑 안된 심볼도 Yahoo fallback 으로 가격 데이터 받음"""
+        resp = client.get("/api/quote", params={"symbol": "OKLO"})
+        assert resp.status_code == 200
+        data = resp.json()
+        # 가격이 있어야 함 (KIS 디스커버리 OR Yahoo fallback 결과)
+        assert "price" in data
+        assert data["price"] >= 0

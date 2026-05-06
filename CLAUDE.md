@@ -35,7 +35,8 @@ cd backend && python -m pytest test/ -v
 - `date_range` 형식: `"2026/3/23-4/3"` — 연도 넘김(12월→1월) 처리 필요
 - `week_num`: 문자열 ("258"). `week_label` ("258 주차")에서 추출
 - 실시간 가격: KIS(한국투자증권) → yfinance → Yahoo API v8 → Yahoo quote 순서. 캐시 30초, KST 21~06시만 갱신
-- KIS 거래소 코드는 심볼별 매핑 (`config.EXCHANGE_MAP`): NASDAQ 종목→`NAS`, NYSE Arca/AMEX→`AMS`. 잘못된 EXCD 사용 시 정규장 대신 어제 종가 반환됨 (예: KORU 를 NAS 로 호출)
+- KIS 거래소 코드는 심볼별 매핑 (`config.EXCHANGE_MAP`): NASDAQ 종목→`NAS`, NYSE Arca/AMEX→`AMS`. 잘못된 EXCD 사용 시 정규장 대신 어제 종가 반환됨 (예: KORU 를 NAS 로 호출). **매핑되지 않은 심볼**은 `NAS → NYS → AMS` 순으로 자동 탐색하고 성공한 EXCD 를 `_EXCD_DISCOVERY` 메모리 캐시에 저장
+- KIS 액세스 토큰은 `backend/.kis_token.json` 으로 영속화 (gitignore 됨). 메모리 캐시 → 디스크 캐시 → 신규 발급 순으로 시도하여 서버 재시작 시 만료 전이면 재사용 (KIS 토큰 발급은 SMS 알림 발생 → 최소화 목적). 만료시각은 KIS 응답의 `access_token_token_expired` 사용
 - KIS 정규 EXCD는 사전장(US 04:00~09:30 ET = KST 17:00~22:30) / 시간외(KST 05:00~09:00) 시간대에도 자동으로 확장된 시간 가격을 반환. 별도 "주간(BAQ/BAY/BAA)" EXCD 는 KIS 내부 세션이라 미국 사전장과 다른 값 → 사용 금지
 - 사전장/시간외 가격 여부는 `extended` 플래그로 응답에 포함. `/price`, `/quote`, `/signal` Discord 응답이 `_(사전장)_` / `_(시간외)_` 라벨 부착 (`discord_bot._session_label`)
 - KIS API 키: `backend/.env`에 저장 (`.gitignore` 포함). AWS Parameter Store(`/trakit/*`)에서 관리
