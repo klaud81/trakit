@@ -52,13 +52,17 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
     """한국투자증권 API로 해외주식 현재가 조회.
 
     심볼별로 상장 거래소(NAS/NYS/AMS) 매핑하여 호출.
+    매핑 없으면 None 반환 (Yahoo fallback 으로 위임 — 잘못된 EXCD 로 정규장만
+    돌아오는 일을 막기 위함).
     실서버에서는 사전장/시간외 시간대에도 자동으로 확장된 시간 가격을 반환함.
     """
+    excd = EXCHANGE_MAP.get(symbol.upper())
+    if excd is None:
+        return None
     token = _get_kis_token()
     if not token:
         return None
     from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
-    excd = EXCHANGE_MAP.get(symbol.upper(), DEFAULT_EXCHANGE)
     try:
         resp = requests.get(
             f"{KIS_BASE_URL}/uapi/overseas-price/v1/quotations/price",
