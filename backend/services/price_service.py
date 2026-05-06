@@ -2,11 +2,13 @@
 
 KIS(한국투자증권) API를 기본 소스로, yfinance/Yahoo API를 fallback으로 사용.
 """
+import json
 import requests
 import yfinance as yf
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Optional
-from config import SYMBOL, PRICE_FETCH_ALWAYS, EXCHANGE_MAP, DAYTIME_EXCD, DEFAULT_EXCHANGE
+from config import SYMBOL, PRICE_FETCH_ALWAYS, EXCHANGE_MAP, DAYTIME_EXCD, DEFAULT_EXCHANGE, BACKEND_DIR
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,16 +20,53 @@ CACHE_TTL_SECONDS = 30  # 30초 캐시
 
 KST = timezone(timedelta(hours=9))
 
-# KIS API 토큰 캐시
+# KIS API 토큰 캐시 (메모리 + 디스크 영속화)
+# 재시작 후에도 만료 전이면 그대로 재사용 → KIS 의 토큰 발급 SMS 알림 최소화
 _kis_token: Optional[str] = None
 _kis_token_expires: Optional[datetime] = None
+_KIS_TOKEN_FILE = BACKEND_DIR / ".kis_token.json"
+
+
+def _load_kis_token_from_disk() -> bool:
+    """디스크에서 토큰 로드. 유효하면 메모리 캐시에 적재."""
+    global _kis_token, _kis_token_expires
+    try:
+        if not _KIS_TOKEN_FILE.exists():
+            return False
+        data = json.loads(_KIS_TOKEN_FILE.read_text())
+        expires = datetime.fromisoformat(data["expires_at"])
+        if datetime.now() >= expires:
+            return False  # 만료됨
+        _kis_token = data["token"]
+        _kis_token_expires = expires
+        logger.info(f"🔑 KIS 토큰 디스크 로드 (만료: {expires.strftime('%Y-%m-%d %H:%M')})")
+        return True
+    except Exception as e:
+        logger.warning(f"KIS 토큰 디스크 로드 실패: {e}")
+        return False
+
+
+def _save_kis_token_to_disk(token: str, expires: datetime) -> None:
+    """토큰을 디스크에 저장 (재시작 시 재사용)."""
+    try:
+        _KIS_TOKEN_FILE.write_text(json.dumps({
+            "token": token,
+            "expires_at": expires.isoformat(),
+        }))
+    except Exception as e:
+        logger.warning(f"KIS 토큰 디스크 저장 실패: {e}")
 
 
 def _get_kis_token() -> Optional[str]:
-    """KIS API 접근토큰 발급 (24시간 유효)"""
+    """KIS API 접근토큰 발급 (24시간 유효, 디스크 캐시)."""
     global _kis_token, _kis_token_expires
+    # 1) 메모리 캐시
     if _kis_token and _kis_token_expires and datetime.now() < _kis_token_expires:
         return _kis_token
+    # 2) 디스크 캐시
+    if _load_kis_token_from_disk():
+        return _kis_token
+    # 3) 신규 발급 (SMS 알림 발생)
     from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
     if not KIS_APP_KEY or not KIS_APP_SECRET:
         return None
@@ -40,28 +79,29 @@ def _get_kis_token() -> Optional[str]:
         resp.raise_for_status()
         data = resp.json()
         _kis_token = data["access_token"]
-        _kis_token_expires = datetime.now() + timedelta(hours=23)
-        logger.info(f"🔑 KIS 토큰 캐시 저장 (만료: {_kis_token_expires.strftime('%Y-%m-%d %H:%M')})")
+        # KIS 응답에 access_token_token_expired (KST naive) 포함 → 사용. 없으면 23h 후
+        exp_str = data.get("access_token_token_expired")
+        if exp_str:
+            try:
+                _kis_token_expires = datetime.strptime(exp_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                _kis_token_expires = datetime.now() + timedelta(hours=23)
+        else:
+            _kis_token_expires = datetime.now() + timedelta(hours=23)
+        _save_kis_token_to_disk(_kis_token, _kis_token_expires)
+        logger.info(f"🔑 KIS 토큰 신규 발급 (만료: {_kis_token_expires.strftime('%Y-%m-%d %H:%M')})")
         return _kis_token
     except Exception as e:
         logger.warning(f"KIS token failed: {e}")
         return None
 
 
-def _fetch_kis(symbol: str) -> Optional[dict]:
-    """한국투자증권 API로 해외주식 현재가 조회.
+# 시도 후 발견한 심볼→EXCD 매핑 캐시 (KIS 호출 횟수 절감)
+_EXCD_DISCOVERY: dict[str, str] = {}
 
-    심볼별로 상장 거래소(NAS/NYS/AMS) 매핑하여 호출.
-    매핑 없으면 None 반환 (Yahoo fallback 으로 위임 — 잘못된 EXCD 로 정규장만
-    돌아오는 일을 막기 위함).
-    실서버에서는 사전장/시간외 시간대에도 자동으로 확장된 시간 가격을 반환함.
-    """
-    excd = EXCHANGE_MAP.get(symbol.upper())
-    if excd is None:
-        return None
-    token = _get_kis_token()
-    if not token:
-        return None
+
+def _fetch_kis_one(symbol: str, excd: str, token: str) -> Optional[dict]:
+    """단일 EXCD 로 KIS 호출."""
     from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
     try:
         resp = requests.get(
@@ -79,8 +119,11 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
         resp.raise_for_status()
         data = resp.json()
         output = data.get("output", {})
-        price = float(output.get("last", 0))
-        prev_close = float(output.get("base", 0))
+        try:
+            price = float(output.get("last") or 0)
+            prev_close = float(output.get("base") or 0)
+        except (ValueError, TypeError):
+            return None
         if price > 0 and prev_close > 0:
             change = price - prev_close
             change_pct = change / prev_close * 100
@@ -95,7 +138,32 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
                 "excd": excd,
             }
     except Exception as e:
-        logger.warning(f"KIS API failed (excd={excd}): {e}")
+        logger.warning(f"KIS API failed (excd={excd}, symbol={symbol}): {e}")
+    return None
+
+
+def _fetch_kis(symbol: str) -> Optional[dict]:
+    """한국투자증권 API로 해외주식 현재가 조회.
+
+    1) `EXCHANGE_MAP` 또는 디스커버리 캐시에 있으면 해당 EXCD 로 호출
+    2) 없으면 NAS → NYS → AMS 순으로 시도하고, 성공한 EXCD 를 캐시
+    실서버에서 사전장/시간외 시간대에도 자동으로 확장된 시간 가격을 반환.
+    """
+    sym = symbol.upper()
+    token = _get_kis_token()
+    if not token:
+        return None
+
+    excd = EXCHANGE_MAP.get(sym) or _EXCD_DISCOVERY.get(sym)
+    if excd:
+        return _fetch_kis_one(sym, excd, token)
+
+    for candidate in ("NAS", "NYS", "AMS"):
+        result = _fetch_kis_one(sym, candidate, token)
+        if result:
+            _EXCD_DISCOVERY[sym] = candidate
+            logger.info(f"🔍 KIS EXCD 디스커버리: {sym} → {candidate}")
+            return result
     return None
 
 
