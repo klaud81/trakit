@@ -9,6 +9,7 @@ import SignalPanel from './components/SignalPanel';
 import ProgressCard from './components/ProgressCard';
 import EquityChart from './components/EquityChart';
 import ValueLineChart from './components/ValueLineChart';
+import PlanVsActualChart from './components/PlanVsActualChart';
 import Sidebar from './components/Sidebar';
 import NewsPanel from './components/NewsPanel';
 import NewsGate, { isNewsAuthed, logoutNews, getNewsAuthExpiry } from './components/NewsGate';
@@ -328,6 +329,7 @@ export default function App() {
         <SignalPanel signal={signal} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} cycleTrade={portfolio} />
         <EquityChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <ValueLineChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
+        <PlanVsActualChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <div className="grid-2">
           <TradeTable title="매수 포인트 (BUY)" table={tradePoints?.buy_table} type="buy" unitSize={tradePoints?.unit_size} cycleTrade={portfolio} />
           <TradeTable title="매도 포인트 (SELL)" table={tradePoints?.sell_table} type="sell" unitSize={tradePoints?.unit_size} cycleTrade={portfolio} />

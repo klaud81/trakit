@@ -73,6 +73,18 @@ def _week_num_int(val):
     return int(m.group(1)) if m else 0
 
 
+def _lookup_planned(planned_map: dict, week_num: int) -> float:
+    """계획 트래젝토리에서 week_num 의 계획값 반환. 홀수 주차는 인접 짝수 보간."""
+    v = planned_map.get(week_num)
+    if v:
+        return v
+    lo = planned_map.get(week_num - 1, 0)
+    hi = planned_map.get(week_num + 1, 0)
+    if lo and hi:
+        return (lo + hi) / 2
+    return lo or hi or 0
+
+
 def _parse_executed_prices(raw) -> list:
     """구매 컬럼 ("63.83 | 64.12 | ...") 을 float 리스트로 파싱.
 
@@ -218,6 +230,10 @@ def get_portfolio_history() -> list:
     valid = df[df["price"].notna()]
     valid = _filter_by_date(valid)
 
+    # 계획 트래젝토리 (PlanVsActualChart 용)
+    from services.goal_service import _build_full_trajectory
+    planned_map = _build_full_trajectory()
+
     history = []
     for _, row in valid.iterrows():
         valuation = _safe_float(row["valuation"], 0)
@@ -242,6 +258,7 @@ def get_portfolio_history() -> list:
                 else "거치식 VR"
             ),
             "executed_prices": _parse_executed_prices(row.get("purchase")),
+            "planned": round(_lookup_planned(planned_map, _week_num_int(row["week_num"])), 2),
         })
     return history
 
