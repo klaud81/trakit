@@ -256,16 +256,10 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 emoji = {"BUY": "🔵", "SELL": "🔴", "HOLD": "🟢"}.get(signal["signal_type"], "⚪")
                 date_range = portfolio.get('date_range', '')
                 label = _session_label(live)
-                msg = f"{emoji} **{signal['signal_type']}** | {portfolio['week_num']}주차 ({date_range})\n"
-                msg += f"TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%){label}\n"
-                msg += f"{signal['recommendation']}\n"
-                if portfolio.get("profit") is not None:
-                    msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)\n"
                 from services.trade_calculator import get_trade_points
                 tp = get_trade_points(current_price=current_price)
                 unit = tp.get("unit_size", 0)
-                # 이번 회차 체결가 방향 추론 (trade_amount 누락/0 이어도 동작)
-                # 첫 체결가가 매도 첫 tier 와 매수 첫 tier 중 어느 쪽에 더 가까운지로 판별
+                # 회차 체결가 방향 추론 + tier 필터링
                 executed = portfolio.get("executed_prices") or []
                 buy_rows = tp["buy_table"]["rows"]
                 sell_rows = tp["sell_table"]["rows"]
@@ -284,6 +278,27 @@ def handle_command(command_name: str, options: dict = None) -> str:
                     buy_rows = [r for r in buy_rows if r["price"] < min(executed)]
                 buy_p = buy_rows[0]["price"] if buy_rows else 0
                 sell_p = sell_rows[0]["price"] if sell_rows else 0
+                # 모든 tier 가 체결된 방향은 마지막 체결가를 boundary 로 사용
+                if not buy_p and cycle_dir == "buy" and executed:
+                    buy_p = min(executed)
+                if not sell_p and cycle_dir == "sell" and executed:
+                    sell_p = max(executed)
+                # 다음 매수/매도 가격으로 밴드 % 위치 + 평균 재계산
+                cur_p = live["price"] if live["price"] > 0 else 0
+                if buy_p and sell_p and sell_p > buy_p:
+                    pos_pct = max(0, min(100, (cur_p - buy_p) / (sell_p - buy_p) * 100))
+                    mid_price = (buy_p + sell_p) / 2
+                    label_kr = {"HOLD": "홀드", "BUY": "매수 추천", "SELL": "매도 추천"}.get(signal["signal_type"], signal["signal_type"])
+                    suffix_kr = {"HOLD": ". 현재 상태 유지하세요.", "BUY": ". 추가 매수를 고려하세요.", "SELL": ". 일부 매도를 고려하세요."}.get(signal["signal_type"], "")
+                    rec = f"{label_kr}: 밴드 내 {pos_pct:.0f}% 위치 (평균: ${mid_price:.2f}){suffix_kr}"
+                else:
+                    rec = signal['recommendation']
+
+                msg = f"{emoji} **{signal['signal_type']}** | {portfolio['week_num']}주차 ({date_range})\n"
+                msg += f"TQQQ ${live['price']:.2f} ({live['change']:+.2f}, {live['change_pct']:+.2f}%){label}\n"
+                msg += f"{rec}\n"
+                if portfolio.get("profit") is not None:
+                    msg += f"수익률: {portfolio['profit']:+,.0f}$ ({portfolio['profit_pct']:+.2f}%)\n"
                 msg += f"**매수: ${buy_p}/주 | 매도: ${sell_p}/주 (기준 {unit}주)**"
                 if portfolio.get("total_profit") is not None:
                     msg += f"\n총손익: {portfolio['total_profit']:+,.0f}$ ({portfolio['total_profit_pct']:+.2f}%) | 원금: ${portfolio['total_invested']:,.0f}"
