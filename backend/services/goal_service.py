@@ -120,7 +120,17 @@ def compute_goal_status(
     goal_progress = (actual_value / goal_usd * 100) if goal_usd > 0 else 0
 
     trajectory = _build_full_trajectory()
+    # 시트는 격주(짝수 주차)만 계획값 있음. 홀수 주차면 인접 두 짝수 사이 선형 보간
     planned = trajectory.get(week_num, 0)
+    if planned == 0 and week_num > 0:
+        lo = trajectory.get(week_num - 1, 0)
+        hi = trajectory.get(week_num + 1, 0)
+        if lo > 0 and hi > 0:
+            planned = (lo + hi) / 2
+        elif lo > 0:
+            planned = lo
+        elif hi > 0:
+            planned = hi
     plan_pct = (actual_value / planned * 100) if planned > 0 else 0
 
     # weeks_diff: actual_value 가 trajectory 상 어느 주차에 도달하는지
