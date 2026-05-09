@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 
-const NEWS_PASSWORD = 'trakit-tq3609';
 const STORAGE_KEY = 'trakit_news_auth_expiry';
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1시간
 
@@ -41,18 +40,26 @@ export default function NewsGate({ onSuccess, onCancel }) {
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (pw === NEWS_PASSWORD) {
-      setNewsAuthed();
-      onSuccess();
-    } else {
-      setErr('비밀번호가 일치하지 않습니다.');
-      setShake(true);
-      setTimeout(() => setShake(false), 400);
-      setPw('');
-      inputRef.current?.focus();
-    }
+    try {
+      const res = await fetch('/api/news/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setNewsAuthed();
+        onSuccess();
+        return;
+      }
+    } catch {}
+    setErr('비밀번호가 일치하지 않습니다.');
+    setShake(true);
+    setTimeout(() => setShake(false), 400);
+    setPw('');
+    inputRef.current?.focus();
   };
 
   return (

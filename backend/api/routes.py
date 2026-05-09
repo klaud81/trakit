@@ -314,6 +314,17 @@ async def news(
         raise HTTPException(status_code=502, detail=f"뉴스 로드 실패: {e}")
 
 
+@router.post("/news/auth")
+async def news_auth(payload: dict):
+    """뉴스 페이지 비밀번호 검증 (시트 AQ1 base64 와 비교)"""
+    try:
+        from services.news_auth_service import verify_password
+        pw = (payload or {}).get("password", "")
+        return {"ok": verify_password(pw)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/discord/register")
 async def discord_register():
     """Discord 슬래시 명령어 강제 재등록 (수동 트리거)"""
