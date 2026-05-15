@@ -109,8 +109,12 @@ def _parse_executed_prices(raw) -> list:
 
 
 def _filter_by_date(df: pd.DataFrame) -> pd.DataFrame:
-    """현재 날짜 기준으로 종료일이 지나지 않은 미래 데이터 제외 (진행 중 주차는 포함)"""
-    today = date.today()
+    """현재 날짜 기준으로 종료일이 지나지 않은 미래 데이터 제외 (진행 중 주차는 포함).
+
+    KST 기준 today 를 사용 (운영 서버는 UTC 라 한국 시간보다 9시간 빠름).
+    """
+    from datetime import datetime, timezone, timedelta
+    today = (datetime.now(timezone.utc) + timedelta(hours=9)).date()
     mask = []
     for _, row in df.iterrows():
         dr = str(row["date_range"]) if pd.notna(row["date_range"]) else ""
