@@ -289,7 +289,7 @@ def handle_command(command_name: str, options: dict = None) -> str:
                     pos_pct = max(0, min(100, (cur_p - buy_p) / (sell_p - buy_p) * 100))
                     mid_price = (buy_p + sell_p) / 2
                     label_kr = {"HOLD": "홀드", "BUY": "매수 추천", "SELL": "매도 추천"}.get(signal["signal_type"], signal["signal_type"])
-                    suffix_kr = {"HOLD": ". 현재 상태 유지하세요.", "BUY": ". 추가 매수를 고려하세요.", "SELL": ". 일부 매도를 고려하세요."}.get(signal["signal_type"], "")
+                    suffix_kr = {"HOLD": "", "BUY": ". 추가 매수를 고려하세요.", "SELL": ". 일부 매도를 고려하세요."}.get(signal["signal_type"], "")
                     rec = f"{label_kr}: 밴드 내 {pos_pct:.0f}% 위치 (평균: ${mid_price:.2f}){suffix_kr}"
                 else:
                     rec = signal['recommendation']

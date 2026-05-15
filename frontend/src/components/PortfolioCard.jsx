@@ -6,8 +6,7 @@ export default function PortfolioCard({ portfolio, signal, prevWeek, exchangeRat
   const rate = exchangeRate?.rate || 1400;
   const valKrw = Math.round(portfolio.valuation * rate);
 
-  // 회차 매매: 이전 주차의 회차기록(executed_prices) × 이전 주차 시점의 거래단위로 표시
-  // (= 현재 주차 시작 직전에 어떤 매매가 있었는지)
+  // 회차 매매: 직전 주차의 체결가 + (현재 shares - 직전 shares) 변화량
   const prevExecuted = prevWeek?.executed_prices || [];
   const prevShares = prevWeek?.shares || portfolio.shares;
   const sharesDelta = portfolio.shares - prevShares;
