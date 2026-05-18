@@ -156,6 +156,14 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
 
     excd = EXCHANGE_MAP.get(sym) or _EXCD_DISCOVERY.get(sym)
     if excd:
+        # KST 데일리장 시간대(10~17시 평일)면 주간 EXCD(BAQ/BAY/BAA) 먼저 시도
+        if _is_kis_daytime_session():
+            daytime_excd = DAYTIME_EXCD.get(excd)
+            if daytime_excd:
+                result = _fetch_kis_one(sym, daytime_excd, token)
+                if result:
+                    result["extended"] = True
+                    return result
         return _fetch_kis_one(sym, excd, token)
 
     for candidate in ("NAS", "NYS", "AMS"):
@@ -188,6 +196,14 @@ def _is_trading_hours() -> bool:
     """KST 21시~06시 사이인지 (자동 갱신 시간대)"""
     hour = datetime.now(KST).hour
     return hour >= 21 or hour < 6
+
+
+def _is_kis_daytime_session() -> bool:
+    """KIS 미국주식 주간거래(데일리장) 시간대 (KST 10:00~17:00 평일)."""
+    now = datetime.now(KST)
+    if now.weekday() >= 5:
+        return False
+    return 10 <= now.hour < 17
 
 
 def _is_us_extended_session() -> bool:

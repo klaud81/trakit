@@ -151,11 +151,13 @@ def _build_goal_message(week_num: int, total_value: float, goal_pct: float, rate
 
 
 def _session_label(p: dict) -> str:
-    """가격 응답에 사전장/시간외 라벨 표시 (extended=True일 때만)."""
+    """가격 응답에 사전장/시간외/데일리장 라벨 표시 (extended=True일 때만)."""
     if not p.get("extended"):
         return ""
     from datetime import datetime, timezone, timedelta
     h = datetime.now(timezone(timedelta(hours=9))).hour
+    if 10 <= h < 17:
+        return " _(데일리장)_"
     if 17 <= h < 23:
         return " _(사전장)_"
     if 5 <= h < 9:
