@@ -44,9 +44,20 @@ export default function SignalPanel({ signal, livePrice, priceRefreshing, tradeP
           <span className={livePrice.change >= 0 ? 'price-up' : 'price-down'}>
             {livePrice.change >= 0 ? '+' : ''}{fmt(livePrice.change)} ({fmtPct(livePrice.change_pct)})
           </span>
-          {livePrice.market_open === false && (
-            <span className="price-bar-closed">closed</span>
-          )}
+          {(() => {
+            if (!livePrice.extended) {
+              return livePrice.market_open === false
+                ? <span className="price-bar-closed">closed</span>
+                : null;
+            }
+            // KST 시간대별 세션 라벨
+            const kstHour = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })).getHours();
+            let label = '장외';
+            if (kstHour >= 10 && kstHour < 17) label = '데일리장';
+            else if (kstHour >= 17 && kstHour < 23) label = '사전장';
+            else if (kstHour >= 5 && kstHour < 9) label = '시간외';
+            return <span className="price-bar-closed">{label}</span>;
+          })()}
         </div>
       )}
       <div style={{ fontSize: '14px', lineHeight: '1.6', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
