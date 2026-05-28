@@ -1,0 +1,190 @@
+/* trakit-theme.css — 100m1s news.css 를 trakit 다크 톤에 맞게 오버라이드.
+   news.css 가 먼저 로드된 뒤 이 파일이 적용되어 변수만 재정의. */
+:root {
+  /* trakit palette */
+  --trakit-bg: #0F1117;
+  --trakit-card: #1A1D27;
+  --trakit-border: #2A2D3A;
+  --trakit-text: #FFFFFF;
+  --trakit-text-muted: #8B8D97;
+  --trakit-primary: #FF8400;
+  --trakit-buy: #1565C0;
+  --trakit-sell: #D32F2F;
+  --trakit-muted-bg: #23262F;
+
+  /* 100m1s vars → trakit 매핑 */
+  --bg:  var(--trakit-bg);
+  --bg2: var(--trakit-muted-bg);
+  --sf:  var(--trakit-card);
+  --bd:  var(--trakit-border);
+  --tx:  var(--trakit-text);
+  --tx2: #C9CBD3;
+  --dm:  var(--trakit-text-muted);
+
+  /* gold accent → trakit primary (orange) */
+  --am:  var(--trakit-primary);
+  --am2: #FFB04D;
+  --am3: rgba(255, 132, 0, 0.35);
+  --am4: rgba(255, 132, 0, 0.12);
+
+  /* burgundy accent → primary 톤 */
+  --ru:  var(--trakit-primary);
+
+  /* 한국 증시 컨벤션 (적색 상승 / 청색 하락) — 100m1s 는 서구식이라 뒤집어 매핑 */
+  --pos: #E53935;  --pos-bg: rgba(229, 57, 53, 0.12);
+  --neg: #1E88E5;  --neg-bg: rgba(30, 136, 229, 0.12);
+  --neu: var(--trakit-text-muted); --neu-bg: var(--trakit-muted-bg);
+
+  /* 회색 오버레이 — 라이트 → 다크 반전 */
+  --g04: rgba(255, 255, 255, 0.04);
+  --g08: rgba(255, 255, 255, 0.08);
+  --g40: rgba(255, 255, 255, 0.4);
+  --g60: rgba(255, 255, 255, 0.6);
+  --g80: rgba(255, 255, 255, 0.8);
+
+  /* 보조 토큰 */
+  --badge-disclosure: #4A9EFF;
+  --badge-predicted: var(--trakit-primary);
+}
+
+/* 본문/표면 기본 톤 강제 (100m1s 가 일부 영역에 white 하드코딩한 경우 대비) */
+body { background: var(--trakit-bg); color: var(--trakit-text); }
+.toss-cal, .theme-tree, .theme-map, .cal-content,
+.cal-feature-card, .stock-card, .kiwoom-block,
+.page-header { background: var(--trakit-card); color: var(--trakit-text); border-color: var(--trakit-border); }
+
+/* 입력/버튼류 */
+button, select, input { background: var(--trakit-card); color: var(--trakit-text); border-color: var(--trakit-border); }
+
+/* 링크/강조 */
+a { color: var(--trakit-primary); }
+a:hover { color: #FFB04D; }
+
+/* 100m1s 의 background: #fff 하드코딩 셀렉터 일괄 어둡게 */
+[style*="background:#fff"], [style*="background: #fff"],
+[style*="background:#FFFFFF"], [style*="background: #FFFFFF"] {
+  background: var(--trakit-card) !important;
+}
+
+/* 섹션 헤더 (테마별 거래대금 추이 / 상한가 / 테마 트리) — 호버 배경을 기본으로 */
+.theme-trend-header[data-scroll-to-section],
+.lut-header[data-scroll-to-section],
+.theme-tree-header[data-scroll-to-section] {
+  background: rgba(255, 132, 0, 0.16);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.theme-trend-header[data-scroll-to-section]:hover,
+.lut-header[data-scroll-to-section]:hover,
+.theme-tree-header[data-scroll-to-section]:hover {
+  background: rgba(255, 132, 0, 0.08);
+}
+
+/* 날짜 헤더 (cal-content-head) — 동일 패턴: 기본/호버 스왑 */
+.cal-content-head[data-scroll-to-cal] {
+  background: rgba(255, 132, 0, 0.16);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+.cal-content-head[data-scroll-to-cal]:hover {
+  background: rgba(255, 132, 0, 0.08);
+}
+
+/* 종목 카드 텍스트 — 카드 자체가 dark 인데 본문에 #111/#333 하드코딩 → 다크에서 안 보임.
+   기본을 light 로 강제하고, 의미 색(up=빨강 / down=파랑)은 별도 유지. */
+.cal-feature-card,
+.cal-feature-card *:not(.cal-feature-pct):not(.up):not(.down) {
+  color: var(--trakit-text);
+}
+.cal-feature-card .cal-meta-sep,
+.cal-feature-card .r-date,
+.cal-feature-card .r-now-label,
+.cal-feature-card [class*="muted"],
+.cal-feature-card [class*="-sub"] {
+  color: var(--trakit-text-muted) !important;
+}
+.cal-feature-card .cal-trade-amount { color: var(--trakit-primary) !important; }
+
+/* 가격 범위 막대 — 배경 어둡게, 텍스트 흰색 */
+.stock-range .range-meta strong { color: var(--trakit-text) !important; }
+.stock-range .range-bar { background: var(--trakit-border) !important; }
+.stock-range.v2 .range-pcts .r-now-label { color: var(--trakit-text-muted) !important; }
+.stock-range .r-date { color: var(--trakit-text-muted) !important; }
+.stock-range .range-meta em.up,
+.stock-range.v2 .range-pcts .up { color: #FF6B6B !important; }   /* 한국 상승 = 빨강, 다크 톤에 맞게 살짝 밝게 */
+.stock-range .range-meta em.down,
+.stock-range.v2 .range-pcts .down { color: #4A9EFF !important; } /* 한국 하락 = 파랑 */
+
+/* cal-feature-pct (등락률 큰 글씨) */
+.cal-feature-pct.up { color: #FF6B6B !important; }
+.cal-feature-pct.down { color: #4A9EFF !important; }
+
+/* "상세 보기" 토글 버튼 — 다크 테마에서 가독성 확보 */
+.cal-detail-toggle {
+  background: var(--trakit-muted-bg) !important;
+  border-color: var(--trakit-border) !important;
+  color: var(--trakit-text) !important;
+}
+.cal-detail-toggle:hover {
+  background: var(--trakit-card) !important;
+  border-color: var(--trakit-primary) !important;
+  color: var(--trakit-primary) !important;
+}
+.cal-toggle-text, .cal-toggle-summary { color: inherit !important; }
+
+/* 종목 이름 highlight (cal-feature-name) — 형광색 → 오렌지 톤 */
+.cal-feature-name mark, .cal-feature-name .highlight,
+.cal-feature-namecell mark {
+  background: rgba(255, 132, 0, 0.25) !important;
+  color: var(--trakit-text) !important;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* 테마/카테고리 pill — 흰 텍스트 + 다크 칩 */
+.kiwoom-theme-chip, .stock-theme, .cal-theme-row > *,
+[class*="theme-chip"], [class*="theme-tag"] {
+  background: var(--trakit-muted-bg) !important;
+  color: var(--trakit-text) !important;
+  border-color: var(--trakit-border) !important;
+}
+.kiwoom-theme-chip.src-owner,
+[class*="theme-chip"].src-owner {
+  background: rgba(255, 132, 0, 0.2) !important;
+  border-color: var(--trakit-primary) !important;
+  color: var(--trakit-primary) !important;
+}
+
+/* 출처 라벨 (서울경제/매경 등) — 다크 칩 */
+.cal-source, .cal-news-source, [class*="news-source"], [class*="cal-source"] {
+  background: var(--trakit-muted-bg) !important;
+  color: var(--trakit-text-muted) !important;
+}
+
+/* 회색/노란/파란 라이트톤 라벨 강제 다크화 */
+.cal-period-mark.upcoming { background: rgba(21, 101, 192, 0.2) !important; color: #4A9EFF !important; }
+.cal-period-mark.active   { background: rgba(211, 47, 47, 0.2) !important; color: #FF6B6B !important; }
+.cal-period-mark.ended    { background: var(--trakit-muted-bg) !important; color: var(--trakit-text-muted) !important; }
+
+/* 차트 툴팁 — 다크 페이지에서도 명확히 보이도록 강제 */
+.theme-trend-tooltip,
+.lut-tooltip,
+.trend-tooltip,
+[class*="trend-tooltip"],
+[class*="trend-tooltip"] * {
+  background: #2A2D3A !important;
+  color: #FFFFFF !important;
+}
+.theme-trend-tooltip,
+.lut-tooltip,
+.trend-tooltip,
+[class*="trend-tooltip"] {
+  border: 1px solid var(--trakit-primary) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* 스크롤바 — 다크에 맞게 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--trakit-bg); }
+::-webkit-scrollbar-thumb { background: var(--trakit-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3A3D4A; }

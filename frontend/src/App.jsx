@@ -12,6 +12,8 @@ import ValueLineChart from './components/ValueLineChart';
 import PlanVsActualChart from './components/PlanVsActualChart';
 import Sidebar from './components/Sidebar';
 import NewsPanel from './components/NewsPanel';
+import KrNewsPanel from './components/KrNewsPanel';
+import KrNightFutureBar from './components/KrNightFutureBar';
 import NewsGate, { isNewsAuthed, logoutNews, getNewsAuthExpiry } from './components/NewsGate';
 
 /** 매수 포인트 계산 — pool이 초기값의 1/2 이하가 되면 중단 */
@@ -49,7 +51,9 @@ function calcSellPoints(shares, maxBand, pool, unit = 10, maxPts = 10) {
 
 function hashToRoute() {
   const h = (window.location.hash || '').replace('#', '');
-  return h === 'news' ? 'news' : 'tqqq';
+  if (h === 'news') return 'news';
+  if (h === 'kr-news') return 'kr-news';
+  return 'tqqq';
 }
 
 export default function App() {
@@ -77,7 +81,7 @@ export default function App() {
   const handleNewsLogout = () => {
     logoutNews();
     setNewsAuthedState(false);
-    if (route === 'news') window.location.hash = 'tqqq';
+    if (route === 'news' || route === 'kr-news') window.location.hash = 'tqqq';
   };
 
   const [portfolio, setPortfolio] = useState(null);
@@ -306,7 +310,7 @@ export default function App() {
     <div className="app-shell">
       <Sidebar newsAuthed={newsAuthed} onNewsLogout={handleNewsLogout} />
       <div className="app-content">
-        {route !== 'news' && (
+        {route === 'tqqq' && (
           <Header
             portfolio={portfolio}
             weekIdx={weekIdx} totalWeeks={allWeeks.length}
@@ -322,6 +326,7 @@ export default function App() {
         )}
         {route === 'tqqq' && (
           <>
+        <KrNightFutureBar />
         <div className="grid-2">
           <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} tradePoints={tradePoints} />
           <BandCard portfolio={portfolio} />
@@ -345,7 +350,18 @@ export default function App() {
             onCancel={() => { window.location.hash = 'tqqq'; }}
           />
         ))}
-        {route !== 'news' && (
+        {route === 'kr-news' && (newsAuthed ? (
+          <>
+            <KrNightFutureBar className="kr-nf-narrow" />
+            <KrNewsPanel />
+          </>
+        ) : (
+          <NewsGate
+            onSuccess={() => setNewsAuthedState(true)}
+            onCancel={() => { window.location.hash = 'tqqq'; }}
+          />
+        ))}
+        {route === 'tqqq' && (
           <div className="sponsor-card">
             <span style={{ fontSize: '22px' }}>☕</span>
             <div className="sponsor-card-text">
@@ -380,6 +396,10 @@ export default function App() {
             <span>누적 {visitors.total}</span>
           </div>
         )}
+        <div className="disclaimer">
+          <div>공시 정보 출처: DART 전자공시시스템</div>
+          <div>이 페이지는 시장 참고 자료입니다. 특정 종목의 매수·매도 권유가 아니며, 모든 투자 판단과 책임은 본인에게 있습니다.</div>
+        </div>
         </div>
       </div>
     </div>

@@ -3,10 +3,12 @@
 실행: cd backend && uvicorn app:app --reload --port 8000
 """
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 from config import API_HOST, API_PORT, CORS_ORIGINS, KIS_MOCK, KIS_BASE_URL, KIS_APP_KEY, DISCORD_BOT_TOKEN
+from services import night_future_service
 
 from datetime import datetime, timezone, timedelta
 
@@ -31,10 +33,20 @@ for name in ["uvicorn", "uvicorn.access", "uvicorn.error"]:
     uv_logger.addHandler(_handler)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await night_future_service.start()
+    try:
+        yield
+    finally:
+        await night_future_service.stop()
+
+
 app = FastAPI(
     title="Trakit",
     description="TQQQ 밸류 리밸런싱 투자 추적 대시보드 API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # CORS (프론트엔드 dev server에서 직접 호출 시 대비)

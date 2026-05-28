@@ -314,6 +314,14 @@ async def news(
         raise HTTPException(status_code=502, detail=f"뉴스 로드 실패: {e}")
 
 
+@router.get("/kr-night-future")
+async def kr_night_future():
+    """KOSPI200 야간선물 실시간 시세 (esignal.co.kr WebSocket 캐시).
+    야간장(KST 18:00~05:00) 외엔 마지막 tick 을 freeze 하여 표시."""
+    from services.night_future_service import get_latest
+    return get_latest()
+
+
 @router.post("/news/auth")
 async def news_auth(payload: dict):
     """뉴스 페이지 비밀번호 검증 (시트 AQ1 base64 와 비교)"""
