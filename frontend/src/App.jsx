@@ -65,6 +65,18 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
+  // AdSense SDK 는 #tqqq 라우트에서만 로드 (정책: 미러링/로그인 화면 광고 금지)
+  useEffect(() => {
+    if (route !== 'tqqq') return;
+    if (document.querySelector('script[data-adsense]')) return;
+    const s = document.createElement('script');
+    s.async = true;
+    s.crossOrigin = 'anonymous';
+    s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7976728626582580';
+    s.setAttribute('data-adsense', '1');
+    document.head.appendChild(s);
+  }, [route]);
+
   // 1시간 세션 만료 자동 체크
   useEffect(() => {
     if (!newsAuthed) return;
