@@ -222,7 +222,10 @@ def build_folder(folder: Path) -> Path | None:
         html = html.replace("{{" + k + "}}", esc(v))
     html = html.replace("{{CONTENT}}", content)
 
-    out = BASE / f"{md.stem}.html"
+    # Vite 가 서빙하는 public/ 로 출력 (→ /lecture.html, /terms.html 로 접근)
+    out_dir = BASE / "public"
+    out_dir.mkdir(exist_ok=True)
+    out = out_dir / f"{md.stem}.html"
     out.write_text(html, encoding="utf-8")
     return out
 
