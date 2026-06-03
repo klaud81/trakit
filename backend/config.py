@@ -29,6 +29,12 @@ GOOGLE_SA_JSON = os.getenv("GOOGLE_SA_JSON", str(BACKEND_DIR / ".gsa.json"))
 # 장중 회차기록 자동 기록 스케줄러 on/off (실전 .env.real 에서만 true 권장)
 SCHEDULE_ENABLED = os.getenv("SCHEDULE_ENABLED", "false").lower() == "true"
 
+# 미국 사전장 시작(ET 04:00) 시 signal/trade/portfolio 자동 Discord 브리핑 on/off.
+# 미설정 시 SCHEDULE_ENABLED 값을 따라감 (실전에서만 자동 on)
+PREMARKET_BRIEF_ENABLED = os.getenv(
+    "PREMARKET_BRIEF_ENABLED", str(SCHEDULE_ENABLED)
+).lower() == "true"
+
 # 투자 설정
 SYMBOL = "TQQQ"
 WATCHLIST = ["TQQQ", "KORU", "QQQ", "SQQQ", "SPY", "SOXL", "SOXS", "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "GOOG", "META"]

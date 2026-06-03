@@ -14,7 +14,7 @@ idempotent 라 첫 발화 외엔 no-op.
 from __future__ import annotations
 import logging
 
-from config import SCHEDULE_ENABLED
+from config import SCHEDULE_ENABLED, PREMARKET_BRIEF_ENABLED
 
 logger = logging.getLogger(__name__)
 _scheduler = None
@@ -30,11 +30,27 @@ def _job():
         logger.warning(f"스케줄 회차기록 실패: {e}")
 
 
+def _brief_job(header: str):
+    """signal/trade/portfolio 를 Discord 채널로 전송.
+
+    Discord content 2000자 제한 회피를 위해 명령어별로 분리 전송한다.
+    명령어 빌더(handle_command)를 그대로 재사용해 슬래시 명령과 동일한 출력.
+    """
+    from services.discord_bot import handle_command
+    from services.discord_service import send_discord
+    send_discord(header)
+    for cmd in ("signal", "trade", "portfolio"):
+        try:
+            send_discord(handle_command(cmd))
+        except Exception as e:
+            logger.warning(f"브리핑 {cmd} 실패: {e}")
+
+
 def start() -> None:
-    """SCHEDULE_ENABLED 면 스케줄러 시작."""
+    """활성화된 스케줄(회차기록/사전장 브리핑)이 있으면 스케줄러 시작."""
     global _scheduler
-    if not SCHEDULE_ENABLED:
-        logger.info("⏰ 회차기록 스케줄 비활성 (SCHEDULE_ENABLED=false)")
+    if not (SCHEDULE_ENABLED or PREMARKET_BRIEF_ENABLED):
+        logger.info("⏰ 스케줄 비활성 (SCHEDULE_ENABLED / PREMARKET_BRIEF_ENABLED=false)")
         return
     if _scheduler is not None:
         return
@@ -44,12 +60,33 @@ def start() -> None:
         logger.warning("apscheduler 미설치 — 스케줄 건너뜀 (pip install apscheduler)")
         return
     _scheduler = BackgroundScheduler(timezone="Asia/Seoul")
-    _scheduler.add_job(
-        _job, "cron", day_of_week="mon-sat", hour="0-6,17-23", minute="*/5",
-        id="cycle_record", max_instances=1, coalesce=True,
-    )
+
+    if SCHEDULE_ENABLED:
+        _scheduler.add_job(
+            _job, "cron", day_of_week="mon-sat", hour="0-6,17-23", minute="*/5",
+            id="cycle_record", max_instances=1, coalesce=True,
+        )
+        logger.info("⏰ 회차기록 스케줄 활성화 (KST 0~6·17~23, 평일~토, 5분 간격)")
+
+    if PREMARKET_BRIEF_ENABLED:
+        # timezone 지정으로 서머타임 자동 처리 (EDT=KST-13h / EST=KST-14h)
+        # 사전장 개장: 미 동부 04:00
+        _scheduler.add_job(
+            lambda: _brief_job("🔔 **미국 사전장 시작** — TQQQ 자동 브리핑"),
+            "cron", day_of_week="mon-fri", hour=4, minute=0,
+            timezone="America/New_York",
+            id="premarket_brief", max_instances=1, coalesce=True,
+        )
+        # 장종료 후: 미 동부 16:00 (정규장 마감)
+        _scheduler.add_job(
+            lambda: _brief_job("🏁 **미국 장 종료** — TQQQ 마감 브리핑"),
+            "cron", day_of_week="mon-fri", hour=16, minute=0,
+            timezone="America/New_York",
+            id="close_brief", max_instances=1, coalesce=True,
+        )
+        logger.info("🔔 브리핑 스케줄 활성화 (ET 04:00 사전장 개장 · 16:00 장종료, 평일)")
+
     _scheduler.start()
-    logger.info("⏰ 회차기록 스케줄 활성화 (KST 0~6·17~23, 평일~토, 5분 간격)")
 
 
 def stop() -> None:
