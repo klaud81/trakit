@@ -21,6 +21,13 @@ EXCHANGE_RATE_TSV = DATA_DIR / "exchange_rate_sheet.tsv"
 GOOGLE_SHEET_ID = "1dI12c4AikkHMiT9dXRUhTCPxJwPA08IzBqAsl8zwUsM"
 GOOGLE_SHEET_URL = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEET_ID}/export?format=csv&gid=0"
 USE_GOOGLE_SHEETS = True  # True면 Google Sheets에서 데이터 로딩
+# 시트 쓰기(회차기록 등 수정)용 서비스계정. 읽기는 공개 CSV, 쓰기는 SA 인증 필요.
+# GOOGLE_SA_KEY: .env 에 JSON 내용 직접 포함(우선). 비면 GOOGLE_SA_JSON 파일 경로 사용.
+GOOGLE_SA_KEY = os.getenv("GOOGLE_SA_KEY", "")
+GOOGLE_SA_JSON = os.getenv("GOOGLE_SA_JSON", str(BACKEND_DIR / ".gsa.json"))
+
+# 장중 회차기록 자동 기록 스케줄러 on/off (실전 .env.real 에서만 true 권장)
+SCHEDULE_ENABLED = os.getenv("SCHEDULE_ENABLED", "false").lower() == "true"
 
 # 투자 설정
 SYMBOL = "TQQQ"
@@ -70,6 +77,21 @@ KIS_MOCK = os.getenv("KIS_MOCK", "true").lower() == "true"
 _KIS_MOCK_URL = "https://openapivts.koreainvestment.com:29443"
 _KIS_REAL_URL = "https://openapi.koreainvestment.com:9443"
 KIS_BASE_URL = os.getenv("KIS_BASE_URL", _KIS_MOCK_URL if KIS_MOCK else _KIS_REAL_URL)
+
+# 키움증권 REST API (KR 데이터 자체 수집용 — 100m1s 미러 대체)
+# KIS 와 달리 실전/모의 모두 동일 도메인(api.kiwoom.com)으로 호출.
+# 투자구분(실전/모의)은 도메인이 아니라 appkey 자체에 포함됨.
+KIWOOM_APP_KEY = os.getenv("KIWOOM_APP_KEY", "")
+KIWOOM_APP_SECRET = os.getenv("KIWOOM_APP_SECRET", "")
+KIWOOM_MODE = os.getenv("KIWOOM_MODE", "mock").lower()  # mock | real (appkey 종류 라벨)
+KIWOOM_BASE_URL = os.getenv("KIWOOM_BASE_URL", "https://api.kiwoom.com")
+
+# KR 뉴스 정리(interpreted) 레이어용 — 뉴스 소스(네이버) + LLM 가공(Gemini)
+# 발급 안내: docs/kr-data-sources.md §2(네이버), §3(Gemini)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")  # 무료 tier 권장
+NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "")
+NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "")
 
 # Discord
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")

@@ -75,6 +75,7 @@ export default function NewsGate({ onSuccess, onCancel }) {
           placeholder="비밀번호"
           value={pw}
           onChange={(e) => { setPw(e.target.value); setErr(''); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(e); }}
           autoComplete="off"
         />
         {err && <div className="news-gate-error">{err}</div>}

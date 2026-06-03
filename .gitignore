@@ -9,5 +9,11 @@ dist/
 .kis_token.json
 backend/.kis_token.json
 data/.kis_token.json
+.kiwoom_token.json
+backend/.kiwoom_token.json
+data/.kiwoom_token.json
+.gsa.json
+backend/.gsa.json
+*service-account*.json
 .omc/
 =0.2.40

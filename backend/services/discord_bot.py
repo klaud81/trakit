@@ -165,6 +165,33 @@ def _session_label(p: dict) -> str:
     return " _(장외)_"
 
 
+def _split_executed(executed: list, trade_amount: float = 0,
+                    buy_p0: float = 0, sell_p0: float = 0) -> tuple[list, list]:
+    """회차기록 체결가 → (매수체결[양수], 매도체결[양수]).
+
+    신 형식(부호): 매도=양수, 매수=음수 → 부호로 분리.
+    구 형식(전부 양수): trade_amount 부호 또는 첫 tier 근접도로 단일 방향 추론(하위호환).
+    """
+    if not executed:
+        return [], []
+    if any(p < 0 for p in executed):  # 신 형식(부호)
+        sell_exec = [p for p in executed if p > 0]
+        buy_exec = [abs(p) for p in executed if p < 0]
+        return buy_exec, sell_exec
+    # 구 형식: 단일 방향 추론
+    cycle_dir = None
+    p0 = executed[0]
+    if buy_p0 and sell_p0:
+        cycle_dir = "buy" if abs(p0 - buy_p0) < abs(p0 - sell_p0) else "sell"
+    elif (trade_amount or 0) != 0:
+        cycle_dir = "sell" if trade_amount > 0 else "buy"
+    if cycle_dir == "buy":
+        return list(executed), []
+    if cycle_dir == "sell":
+        return [], list(executed)
+    return [], []
+
+
 def _get_week_by_offset(offset: int) -> dict:
     """히스토리에서 오프셋 기준 주차 데이터 조회 (0=마지막, -1=이전)"""
     from services.portfolio_service import get_portfolio_history
@@ -261,30 +288,25 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 from services.trade_calculator import get_trade_points
                 tp = get_trade_points(current_price=current_price)
                 unit = tp.get("unit_size", 0)
-                # 회차 체결가 방향 추론 + tier 필터링
+                # 회차 체결가 방향 분리(매도=양수/매수=음수) + 체결된 tier 제외
                 executed = portfolio.get("executed_prices") or []
                 buy_rows = tp["buy_table"]["rows"]
                 sell_rows = tp["sell_table"]["rows"]
-                cycle_dir = None
-                if executed:
-                    p0 = executed[0]
-                    buy_p0 = buy_rows[0]["price"] if buy_rows else 0
-                    sell_p0 = sell_rows[0]["price"] if sell_rows else 0
-                    if buy_p0 and sell_p0:
-                        cycle_dir = "buy" if abs(p0 - buy_p0) < abs(p0 - sell_p0) else "sell"
-                    elif (portfolio.get("trade_amount") or 0) != 0:
-                        cycle_dir = "sell" if portfolio["trade_amount"] > 0 else "buy"
-                if cycle_dir == "sell":
-                    sell_rows = [r for r in sell_rows if r["price"] > max(executed)]
-                if cycle_dir == "buy":
-                    buy_rows = [r for r in buy_rows if r["price"] < min(executed)]
+                buy_p0 = buy_rows[0]["price"] if buy_rows else 0
+                sell_p0 = sell_rows[0]["price"] if sell_rows else 0
+                buy_exec, sell_exec = _split_executed(
+                    executed, portfolio.get("trade_amount") or 0, buy_p0, sell_p0)
+                if sell_exec:
+                    sell_rows = [r for r in sell_rows if r["price"] > max(sell_exec)]
+                if buy_exec:
+                    buy_rows = [r for r in buy_rows if r["price"] < min(buy_exec)]
                 buy_p = buy_rows[0]["price"] if buy_rows else 0
                 sell_p = sell_rows[0]["price"] if sell_rows else 0
                 # 모든 tier 가 체결된 방향은 마지막 체결가를 boundary 로 사용
-                if not buy_p and cycle_dir == "buy" and executed:
-                    buy_p = min(executed)
-                if not sell_p and cycle_dir == "sell" and executed:
-                    sell_p = max(executed)
+                if not buy_p and buy_exec:
+                    buy_p = min(buy_exec)
+                if not sell_p and sell_exec:
+                    sell_p = max(sell_exec)
                 # 다음 매수/매도 가격으로 밴드 % 위치 + 평균 재계산
                 cur_p = live["price"] if live["price"] > 0 else 0
                 if buy_p and sell_p and sell_p > buy_p:
@@ -305,10 +327,13 @@ def handle_command(command_name: str, options: dict = None) -> str:
                 if portfolio.get("total_profit") is not None:
                     msg += f"\n총손익: {portfolio['total_profit']:+,.0f}$ ({portfolio['total_profit_pct']:+.2f}%) | 원금: ${portfolio['total_invested']:,.0f}"
                 # 이번 회차 체결 요약 (제일 아래)
-                if executed:
-                    direction = "매도" if cycle_dir == "sell" else "매수" if cycle_dir == "buy" else ""
-                    prices_str = ", ".join(f"${p}" for p in executed)
-                    msg += f"\n이번 회차 요약: {direction}: {prices_str}"
+                if buy_exec or sell_exec:
+                    parts = []
+                    if sell_exec:
+                        parts.append("매도: " + ", ".join(f"${p}" for p in sell_exec))
+                    if buy_exec:
+                        parts.append("매수: " + ", ".join(f"${p}" for p in buy_exec))
+                    msg += "\n이번 회차 요약: " + " | ".join(parts)
                 return msg
 
         elif command_name == "portfolio":
@@ -440,18 +465,13 @@ def handle_command(command_name: str, options: dict = None) -> str:
             executed = p.get("executed_prices") or []
             buy_rows = tp["buy_table"]["rows"]
             sell_rows = tp["sell_table"]["rows"]
-            # 회차 체결가 방향 추론 (trade_amount 누락/0 이어도 동작)
-            cycle_dir = None
-            if executed:
-                p0 = executed[0]
-                buy_p0 = buy_rows[0]["price"] if buy_rows else 0
-                sell_p0 = sell_rows[0]["price"] if sell_rows else 0
-                if buy_p0 and sell_p0:
-                    cycle_dir = "buy" if abs(p0 - buy_p0) < abs(p0 - sell_p0) else "sell"
-                elif (p.get("trade_amount") or 0) != 0:
-                    cycle_dir = "sell" if p["trade_amount"] > 0 else "buy"
-            buy_done = set(executed) if cycle_dir == "buy" else set()
-            sell_done = set(executed) if cycle_dir == "sell" else set()
+            # 체결가 방향 분리 (매도=양수/매수=음수, 구형식은 추론)
+            buy_p0 = buy_rows[0]["price"] if buy_rows else 0
+            sell_p0 = sell_rows[0]["price"] if sell_rows else 0
+            buy_exec, sell_exec = _split_executed(
+                executed, p.get("trade_amount") or 0, buy_p0, sell_p0)
+            buy_done = set(buy_exec)
+            sell_done = set(sell_exec)
 
             msg = f"📊 **매매 테이블** | {p['week_num']}주차\n"
             msg += f"보유 {p['shares']}주 · pool ${p['pool']:,.2f} · 단위 {unit}주\n"
@@ -468,9 +488,13 @@ def handle_command(command_name: str, options: dict = None) -> str:
                     mark = " ✓" if r["price"] in sell_done else ""
                     msg += f"`{i}차` ${r['price']}/주 → {r['shares_after']}주, +${r['amount']:,.2f}{mark}\n"
 
-            if executed:
-                direction = "매도" if cycle_dir == "sell" else "매수" if cycle_dir == "buy" else ""
-                msg += f"\n_이번 회차 체결: {direction} " + ", ".join(f"${ep}" for ep in executed) + "_"
+            if buy_exec or sell_exec:
+                parts = []
+                if sell_exec:
+                    parts.append("매도 " + ", ".join(f"${p}" for p in sell_exec))
+                if buy_exec:
+                    parts.append("매수 " + ", ".join(f"${p}" for p in buy_exec))
+                msg += "\n_이번 회차 체결: " + " | ".join(parts) + "_"
             return msg
 
         elif command_name == "refresh":

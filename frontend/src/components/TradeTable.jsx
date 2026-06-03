@@ -4,20 +4,29 @@ export default function TradeTable({ title, table, type, unitSize, cycleTrade })
   const color = type === 'buy' ? 'var(--buy)' : 'var(--sell)';
   const header = table?.header;
   const allRows = table?.rows || [];
-  // 현재 회차에 이번 type 방향으로 거래한 주식수 / 회차수
+  // 회차기록 체결가 형식
+  //  - 신 형식(부호): 매도=양수, 매수=음수 → 한 회차에 매수·매도 혼재 가능
+  //  - 구 형식(부호 없음): 전부 양수, 방향은 trade_shares 부호로 판별(양수=매수)
   const tradeShares = cycleTrade?.trade_shares || 0;
-  const tradeAmount = cycleTrade?.trade_amount || 0;
   const executedPrices = cycleTrade?.executed_prices || [];
-  const matchesDirection = (type === 'buy' && tradeShares > 0) || (type === 'sell' && tradeShares < 0);
-  // 체결가 개수가 곧 회차 수 (1 price = 1 round = unitSize 주)
-  const executedRounds = matchesDirection ? executedPrices.length : 0;
+  const hasSigned = executedPrices.some((p) => p < 0);
+  let buyExec, sellExec;
+  if (hasSigned) {
+    sellExec = executedPrices.filter((p) => p > 0);
+    buyExec = executedPrices.filter((p) => p < 0).map((p) => Math.abs(p));
+  } else {
+    buyExec = tradeShares > 0 ? executedPrices : [];
+    sellExec = tradeShares < 0 ? executedPrices : [];
+  }
+  // 이 테이블 방향의 체결가(양수). 개수 = 회차 수 (1 price = 1 round = unitSize 주)
+  const myExec = type === 'buy' ? buyExec : sellExec;
+  const executedRounds = myExec.length;
   const executedShares = executedRounds * (unitSize || 0);
-  // 체결가가 있으면 해당 가격대를 이미 체결된 것으로 표시 (취소선)
-  // 매도: 가격 ≤ max(체결가) / 매수: 가격 ≥ min(체결가)
+  // 취소선: 매도 가격 ≤ max(매도체결) / 매수 가격 ≥ min(매수체결)
   const isExecuted = (price) => {
-    if (!matchesDirection || executedPrices.length === 0) return false;
-    if (type === 'sell') return price <= Math.max(...executedPrices);
-    return price >= Math.min(...executedPrices);
+    if (myExec.length === 0) return false;
+    if (type === 'sell') return price <= Math.max(...sellExec);
+    return price >= Math.min(...buyExec);
   };
   const rows = allRows;
 
@@ -38,7 +47,7 @@ export default function TradeTable({ title, table, type, unitSize, cycleTrade })
           이번 회차 {type === 'buy' ? '매수' : '매도'}{' '}
           <strong style={{ color }}>{executedRounds}회 × {unitSize}주</strong>
           {' '}= {executedShares}주
-          {' '}({type === 'buy' ? '-' : '+'}${fmt(executedPrices.reduce((s, p) => s + p * unitSize, 0), 2)})
+          {' '}({type === 'buy' ? '-' : '+'}${fmt(myExec.reduce((s, p) => s + p * unitSize, 0), 2)})
         </div>
       )}
       <table className="trade-table">

@@ -35,10 +35,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from services import scheduler
     await night_future_service.start()
+    scheduler.start()  # SCHEDULE_ENABLED=true 면 회차기록 자동 기록 스케줄 등록
     try:
         yield
     finally:
+        scheduler.stop()
         await night_future_service.stop()
 
 

@@ -4,6 +4,68 @@
 
 ---
 
+## 구현 현황 (2026-06-03 업데이트)
+
+**`#kr-news` 4개 데이터 레이어 전부 자체생성 가능** — 100m1s 미러 없이 키움+네이버+Gemini 키로 생성. 100m1s 비공개 `news_pipeline`(대표 PC, 접근 불가)의 생성기들을 **출력물 역설계**로 trakit 에 재현.
+
+### 레이어별 상태 (4 레이어 + OG)
+| 레이어 | 파일 | 소스 | trakit 생성기 | 상태 |
+|--------|------|------|--------------|------|
+| **일봉(dailybars)** | `dailybars/{code}.json` | 키움 `ka10081` | `kr_data_build.py` | ✅ 풀빌드(456종목) |
+| **랭킹** | `kiwoom/{date}.json` | 조건검색 `ka10171`+`ka10172` | `kr_ranking_capture.py` | ✅ 검증(장중 가동) |
+| **뉴스 해석** | `interpreted/stock-{date}.json` | 네이버검색 + Gemini | `kr_interpret_build.py` | ✅ 코어 스키마 |
+| **OG 이미지** | `og/news/stock/{date}/{code}.png` | dailybars + Pillow | `kr_og_build.py` | ✅ 디자인 재현 |
+| 시세(현재가) | — | 키움 `ka10001` | `kiwoom_service` | ✅ 동작 |
+
+### 비공개 `news_pipeline` 역설계 (핵심 발견)
+100m1s 의 데이터 생성기는 공개 `100m1s-homepage` 가 아니라 **대표(박성진) 비공개 main 리포**(`/Users/seongjinpark/company/100m1s/.../scripts/news_pipeline/`)에 있음. 공개 리포엔 **결과물만** 커밋됨. 따라서 코드 복사가 아닌 **출력물 역설계**로 재현:
+
+| 비공개 원본 | 산출물 | trakit 재현 |
+|------------|--------|-------------|
+| `build_daily.py` (뉴지) | interpreted/newzy | `kr_news_interpret.py`(`analyze_news_newzy`) |
+| 영웅문 조건식 `500억이상` | kiwoom 랭킹 | `kr_ranking_capture.py` (우리 조건식 사용) |
+| `generate_stock_og.py` | og/*.png | `kr_og_build.py` |
+| (ka10081) | dailybars | `kr_data_build.py` |
+
+⚠️ **스키마·디자인은 1:1 재현하나 값은 다를 수 있음** — 우리 프롬프트/조건식으로 생성하기 때문. 조건식 추가필터(등락률 등)·newzy 프롬프트는 비공개라 근사 재현.
+
+### 키 / 설정 (`backend/.env`, gitignore — 전부 실제 호출로 검증)
+- **키움(모의)**: `KIWOOM_APP_KEY/SECRET`, `KIWOOM_MODE=mock`. 실전/모의 **동일 도메인** `api.kiwoom.com`(투자구분은 appkey 에 포함, `mockapi…`는 8030 거부). 토큰 `POST /oauth2/token`(body `secretkey`, 응답 `token`/`expires_dt`), 디스크캐시 `data/.kiwoom_token.json`. ⚠️ 키움 `revoke_token`이 동일 토큰 폐기 → 스크레이퍼 셀프테스트 cleanup이 우리 캐시 무효화(8005) 가능, 캐시삭제 후 재발급 복구.
+- **Gemini**: `GEMINI_API_KEY`(신형 `AQ.` 형식), `GEMINI_MODEL=gemini-2.5-flash`. generateContent 검증.
+- **네이버 검색**: `NAVER_CLIENT_ID/SECRET`. 뉴스 검색(일 25,000회) 검증.
+- config: `backend/config.py` 가 모두 env 에서 읽음. `.kiwoom_token.json` `.gitignore` 추가.
+
+### 검증 근거 (요약)
+- **일봉**: 우리 ka10081 = 100m1s dailybars **8거래일 전필드 원단위 100% 일치**(242040). 풀빌드 456종목 written=450/skip=6/실패 0.
+- **랭킹**: 조건식 `500억이상` 등록→`ka10171` 인식→`ka10172` 실행 성공. 미러 6/1·6/2 거래대금과 우리 ka10081 9/9 일치(전일 이월 특성 규명). **조건은 실시간 전용 → 과거 소급 불가, 장중 캡처만 충실**(나무기술 6/1: EOD −24.7%인데 장중 +24.8% 스파이크에 매칭). 순수 거래대금≥500억(35~52종목) ≠ 미러(9~11) → 조건에 숨은 추가필터.
+- **뉴스**: newzy 스키마 출력 2,546건 역설계 — `newzy_score = 5차원(freshness/persistence/magnitude/virality/tradability) 단순평균`(오차 0). 네이버검색→기사→Gemini 체인 검증(디앤디파마텍 호재 0.72).
+- **OG**: 1200×630 카드(종목명·골드밑줄·현재가·등락률 pill·캔들/라인차트·날짜) Pillow 재현, 나무기술 카드 원본 대조 확인.
+
+### 추가/변경된 파일
+- `backend/services/kiwoom_service.py` — `get_token`, `get_daily_chart`(ka10081), `get_today_trade_amount`, 조건검색 `condition_list`/`condition_search`(ka10171/172 WebSocket)
+- `backend/services/kr_news_interpret.py` — `analyze_news`(복사) + `analyze_news_newzy`(역설계)
+- `backend/scripts/`: `kr_data_build.py`(일봉) · `kr_ranking_capture.py`(랭킹) · `kr_interpret_build.py`(뉴스) · `kr_og_build.py`(OG)
+- `backend/config.py` — 키움·Gemini·네이버 설정
+- `.gitignore` — `.kiwoom_token.json`; `frontend/public/kr-news/.gitignore` — `og/` 추가
+- 검증보조: `100m1s-homepage/scripts/kiwoom-scraper/crosscheck_condition.py`(장중 교차검증)
+
+### 가동 모델 — 서버 cron (KST, GitHub Actions 아님)
+trakit 은 `kr-news/data`·`og` 가 gitignore(런타임 재생성)이라 100m1s 의 git-commit 방식 부적합 → **서버 cron**:
+```cron
+10 * * * 1-5   python3 scripts/kr_news_sync.py          # 미러 동기화(universe 공급) — 과도기
+*/15 9-15 * * 1-5  python3 -m scripts.kr_ranking_capture # 랭킹 장중 캡처
+20 16 * * 1-5  python3 -m scripts.kr_data_build          # 일봉(장 마감 후)
+30 16 * * 1-5  python3 -m scripts.kr_interpret_build     # 뉴스 해석
+40 16 * * 1-5  python3 -m scripts.kr_og_build            # OG 이미지
+```
+
+### 남은 한계 / 미완
+- interpreted **코어 스키마만** 생성(themes_tree·status_badges·togusa_verdict·hugepark_grade·bullish_* 등은 100m1s 사설 파이프라인 의존 → 미생성, 렌더러 graceful degrade).
+- 랭킹 조건의 **정확한 추가필터**(100m1s 영웅문)는 비공개 → 우리 조건식 결과와 다를 수 있음.
+- 네이버 검색은 제목+요약+링크만(본문 X) — 본문 필요 시 §2-B/C(카페 OAuth/스크래핑).
+
+---
+
 ## 1. 키움증권 (Kiwoom)
 
 키움은 API 가 두 종류로 나뉘므로 어느 쪽을 쓸지 먼저 결정.
@@ -115,9 +177,11 @@ backend/.env
 
 ## 5. 작업 시작 시 우선순위
 
-1. 키움 REST API 신청 (승인 1~2 영업일 — 가장 오래 걸림, 먼저 신청)
-2. 네이버 개발자센터에서 검색 API 발급 (즉시)
-3. Gemini API 키 발급 (즉시)
-4. 키움 REST 로 시세/차트 동작 확인 → `services/kiwoom_service.py` 신규 작성
-5. 검색 API + 선택적 (C) 트랙으로 `services/naver_cafe_service.py` 작성
-6. `kr_news_sync.py` 의 100m1s 미러를 자체 수집으로 단계적 대체
+1. ✅ 키움 REST API 신청·발급 (모의 appkey 확보, `backend/.env`)
+2. ✅ 네이버 검색 API 발급·설정 (`NAVER_CLIENT_ID/SECRET`, 검증 완료)
+3. ✅ Gemini API 키 발급·설정 (`GEMINI_API_KEY`, gemini-2.5-flash, 검증 완료)
+4. ✅ 키움 REST 시세/차트 → `services/kiwoom_service.py` (토큰·ka10081·조건검색)
+5. ✅ 네이버 검색 + Gemini → `services/kr_news_interpret.py` (`analyze_news_newzy`)
+6. ✅ 100m1s 미러를 자체 수집으로 대체 — **4레이어 전부 완료**: 일봉·랭킹·뉴스·OG (`kr_*_build.py` / `kr_ranking_capture.py`)
+
+> 진척: 위 "구현 현황(2026-06-03)" 섹션 참조. **4개 레이어 전부 자체생성 가능** (잔여: interpreted 풍부 스키마·조건 추가필터는 비공개라 근사 재현).
