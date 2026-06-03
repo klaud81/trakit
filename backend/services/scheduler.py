@@ -13,8 +13,12 @@ idempotent 라 첫 발화 외엔 no-op.
 """
 from __future__ import annotations
 import logging
+from datetime import datetime, timezone, timedelta
 
 from config import SCHEDULE_ENABLED, PREMARKET_BRIEF_ENABLED
+
+KST = timezone(timedelta(hours=9))
+_WEEKDAY_KR = ("월", "화", "수", "목", "금", "토", "일")
 
 logger = logging.getLogger(__name__)
 _scheduler = None
@@ -38,8 +42,10 @@ def _brief_job(header: str):
     """
     from services.discord_bot import handle_command
     from services.discord_service import send_discord
-    send_discord(header)
-    for cmd in ("signal", "trade", "portfolio"):
+    now = datetime.now(KST)
+    date_line = f"**{now:%Y-%m-%d} ({_WEEKDAY_KR[now.weekday()]})**"
+    send_discord(f"{date_line}\n{header}")
+    for cmd in ("portfolio", "signal", "trade"):
         try:
             send_discord(handle_command(cmd))
         except Exception as e:
