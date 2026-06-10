@@ -1,0 +1,336 @@
+"""VI 차익거래 — Kiwoom 실연동 관측 observer (rq-01 FR-01~06, 관측 전용).
+
+OBSERVATION MODE — NO ORDERS. 주문 API 호출 없음.
+
+흐름: get_token → WS LOGIN → 1h(VI) 구독 → VI 발동 시 {code}/{code}_NX 동적구독
+      → NXT 매도호가 vs KRX 예상체결가 스프레드 계산 → hub.broadcast (mock 과 동일 스키마)
+      → KRX 첫 체결(0B)=랜덤엔드 재개 → TTL(발동+210s) 만료 시 구독 해제.
+
+⚠️ §5.2 미검증(공식문서 확인 필요): 예상체결 실시간 타입코드(추정 0E), 1h 전종목 등록
+   가능 여부, VI/NXT FID 체계, NXT 시세 이용신청. → 수신 raw values 를 로그로 남겨
+   라이브에서 FID 매핑을 확정한다. 미매핑이어도 연결/구독/브로드캐스트는 동작.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+
+from config import KIWOOM_ENVS, VI_ARB_UNIVERSE, VI_ARB_ORDER, VI_ARB_OBS_ENV
+from services.vi_arb import TAX, FEE, EDGE_BUFFER, _now_iso
+
+logger = logging.getLogger(__name__)
+# 관측 환경(기본 real — NXT 차익 괴리는 mockapi 미지원). 주문은 kiwoom_order 가 mock 고정.
+_OBS = KIWOOM_ENVS.get(VI_ARB_OBS_ENV, KIWOOM_ENVS["real"])
+
+
+def _env_token(env: dict) -> str | None:
+    """주어진 환경(env)으로 토큰 발급."""
+    import urllib.request
+    if not (env.get("app_key") and env.get("app_secret")):
+        return None
+    body = json.dumps({"grant_type": "client_credentials", "appkey": env["app_key"],
+                       "secretkey": env["app_secret"]}).encode()
+    req = urllib.request.Request(f"{env['base_url']}/oauth2/token", data=body,
+                                 headers={"Content-Type": "application/json;charset=UTF-8"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.loads(r.read())
+        return d.get("token") or d.get("access_token")
+    except Exception as e:
+        logger.warning(f"토큰 발급 실패({env.get('base_url')}): {e}")
+        return None
+
+
+def _env_ws_connect(env: dict):
+    """주어진 환경 WS 연결 (wss://{domain}:10000/api/dostk/websocket)."""
+    import ssl
+    import urllib.parse
+    import websockets
+    host = urllib.parse.urlparse(env["base_url"]).netloc
+    ctx = ssl.create_default_context()
+    return websockets.connect(f"wss://{host}:10000/api/dostk/websocket", ssl=ctx, open_timeout=15)
+
+
+def check_nxt_quote(code: str = "005930") -> dict:
+    """real 환경 NXT 시세 이용신청 여부 확인 (ka10001 주식기본정보, _NX 심볼).
+
+    NXT 시세 권한이 있으면 현재가/기준가가 채워져 옴 → nxt_enabled=True.
+    없으면 빈값 또는 오류. 장중·장외 무관(기준가로 판별).
+    """
+    import urllib.request
+    token = _env_token(_OBS)
+    if not token:
+        return {"ok": False, "reason": f"관측({VI_ARB_OBS_ENV}) 토큰 없음"}
+    body = json.dumps({"stk_cd": f"{code}_NX"}).encode()
+    req = urllib.request.Request(
+        f"{_OBS['base_url']}/api/dostk/stkinfo", data=body,
+        headers={"Content-Type": "application/json;charset=UTF-8",
+                 "authorization": f"Bearer {token}", "api-id": "ka10001"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            d = json.loads(r.read())
+    except Exception as e:
+        return {"ok": False, "reason": str(e)}
+    cur, base = (d.get("cur_prc") or "").strip(), (d.get("base_pric") or "").strip()
+    return {"ok": str(d.get("return_code", "0")) in ("0", "None"),
+            "nxt_enabled": bool(_num(cur) or _num(base)), "symbol": f"{code}_NX",
+            "stk_nm": d.get("stk_nm", ""), "cur_prc": cur, "base_pric": base,
+            "env": VI_ARB_OBS_ENV, "return_msg": d.get("return_msg", "")}
+
+
+def _fill_msg(d: dict) -> dict:
+    """00 주문체결 프레임 → order_fill 메시지 (p.471 FID)."""
+    v = d.get("values", {}) or {}
+    return {"type": "order_fill", "code": (v.get(FID_CODE) or "").strip(),
+            "name": v.get("302", ""), "status": v.get("913", ""), "ord_no": v.get("9203", ""),
+            "side": "매수" if v.get("907") == "2" else "매도" if v.get("907") == "1" else "",
+            "ord_qty": round(_num(v.get("900"))), "fill_price": round(_num(v.get("910"))),
+            "fill_qty": round(_num(v.get("911"))), "exchange": v.get("2135", ""), "ts": _now_iso()}
+
+
+async def _mock_fill_listener(broadcast, is_active) -> None:
+    """mock WS 로 00(주문체결) 수신 → order_fill 방송. (모의 체결은 mock 도메인에서만)"""
+    env = KIWOOM_ENVS["mock"]
+    backoff = 1
+    while is_active():
+        try:
+            token = _env_token(env)
+            if not token:
+                return
+            async with await _env_ws_connect(env) as ws:
+                await ws.send(json.dumps({"trnm": "LOGIN", "token": token}))
+                await ws.recv()
+                await ws.send(json.dumps({"trnm": "REG", "grp_no": "9", "refresh": "1",
+                                          "data": [{"item": [""], "type": [RT_ORDER]}]}))
+                logger.info("⚡ mock 체결(00) 리스너 시작")
+                backoff = 1
+                while is_active():
+                    raw = await asyncio.wait_for(ws.recv(), timeout=60)
+                    msg = json.loads(raw)
+                    if msg.get("trnm") == "PING":
+                        await ws.send(raw)
+                        continue
+                    if msg.get("trnm") == "REAL":
+                        for d in msg.get("data", []):
+                            if d.get("type") == RT_ORDER:
+                                await broadcast(_fill_msg(d))
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            logger.warning(f"mock 체결 리스너 오류: {e}")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 30)
+
+# 실시간 타입 — docs/kiwoom-rest-api.pdf p.6 인덱스 확인
+RT_ORDER = "00"        # 주문체결 (p.470) — 모의 주문 체결 스트림
+RT_VI = "1h"            # VI발동/해제 (p.528)
+RT_TRADE = "0B"        # 주식체결 (p.480) — KRX 재개 감지
+RT_QUOTE = "0D"        # 주식호가잔량 (p.486) — NXT 최우선매도호가/잔량
+RT_EXPECTED = "0H"     # 주식예상체결 (p.504) — KRX 예상체결가. (0E는 시간외호가!)
+TTL_SEC = 210          # 단일가120 + 랜덤엔드30 + 여유60
+
+# FID — docs 확인 (p.471/481/487/505/529)
+FID_CODE = "9001"       # 종목코드
+FID_NAME = "302"        # 종목명
+FID_PRICE = "10"        # 현재가/예상체결가
+FID_ASK1 = "41"         # 0D 매도호가1(최우선)
+FID_ASKQTY1 = "61"      # 0D 매도호가수량1
+FID_TRADE_ASK = "27"    # 0B (최우선)매도호가
+# VI 1h FIDs (p.529)
+FID_VI_GUBUN = "1225"   # VI적용구분: 정적/동적/동적+정적
+FID_VI_TRIGGER = "1221" # VI발동가격(원)
+FID_VI_RATE = "1489"    # VI발동가 등락율 (예: +10.00 → 방향·발동률)
+FID_VI_RELEASE = "1224" # VI해제시각(HHmmss) — 채워지면 해제
+
+
+def _num(v) -> float:
+    """시세 부호(+/-)·콤마 정규화 (rq-01 FR-07)."""
+    if v is None:
+        return 0.0
+    try:
+        return abs(float(str(v).replace(",", "").lstrip("+-")))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+class _Watch:
+    __slots__ = ("code", "name", "trigger", "gubun", "direction", "vi_pct",
+                 "expire", "krx_resumed", "first_buy", "max_profit_pct", "ordered")
+
+    def __init__(self, code, name, trigger, gubun, direction, vi_pct):
+        self.code, self.name, self.trigger = code, name, trigger
+        self.gubun, self.direction, self.vi_pct = gubun, direction, vi_pct
+        self.expire = time.time() + TTL_SEC
+        self.krx_resumed = False
+        self.first_buy = None
+        self.max_profit_pct = 0.0
+        self.ordered = False
+
+
+async def _place_mock_order(broadcast, w: "_Watch") -> None:
+    """VI 발동 종목에 모의 매수 (장중이면 체결 → 00 스트림으로 수신)."""
+    from services import kiwoom_order
+    loop = asyncio.get_event_loop()
+    res = await loop.run_in_executor(
+        None, lambda: kiwoom_order.place_order(w.code, "buy", price=w.trigger or None, exchange="KRX"))
+    await broadcast({"type": "order", "code": w.code, "name": w.name,
+                     "direction": w.direction, "ok": res.get("ok"),
+                     "ord_no": res.get("ord_no"), "reason": res.get("reason", ""),
+                     "ts": _now_iso()})
+
+
+async def run(broadcast, is_active) -> None:
+    """관측 메인 루프 (지수 백오프 재연결). broadcast: async 콜백, is_active: ()->bool.
+
+    관측 WS = real 환경(NXT 차익 괴리). 주문 = mock(kiwoom_order). 하이브리드.
+    """
+    backoff = 1
+    logger.info(f"⚡ VI 관측 환경={VI_ARB_OBS_ENV}({_OBS['base_url']}) · 주문=mock")
+    while is_active():
+        try:
+            token = _env_token(_OBS)
+            if not token:
+                logger.warning("관측 토큰 없음 — 중단")
+                return
+            async with await _env_ws_connect(_OBS) as ws:
+                await ws.send(json.dumps({"trnm": "LOGIN", "token": token}))
+                login = json.loads(await ws.recv())
+                if str(login.get("return_code")) not in ("0", "None") and login.get("trnm") != "LOGIN":
+                    logger.warning(f"Kiwoom WS LOGIN 응답: {login}")
+                # 1h(VI) 구독 (real WS) — 유니버스 있으면 종목 한정, 없으면 전종목
+                items = VI_ARB_UNIVERSE or [""]
+                await ws.send(json.dumps({"trnm": "REG", "grp_no": "1", "refresh": "1",
+                                          "data": [{"item": items, "type": [RT_VI]}]}))
+                mode_label = "모의 매수 활성" if VI_ARB_ORDER else "관측 전용 — NO ORDERS"
+                logger.info(f"⚡ VI 관측 시작 ({mode_label}) "
+                            f"universe={'전종목' if items == [''] else len(items)}")
+                backoff = 1
+                watches: dict[str, _Watch] = {}
+                # 주문 활성 시 mock WS 체결(00) 리스너 병행 (모의 체결은 mock 도메인에서만 수신)
+                fill_task = asyncio.create_task(_mock_fill_listener(broadcast, is_active)) if VI_ARB_ORDER else None
+                try:
+                    await _recv_loop(ws, broadcast, is_active, watches)
+                finally:
+                    if fill_task:
+                        fill_task.cancel()
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            logger.warning(f"Kiwoom 관측 연결 오류: {e} — {backoff}s 후 재연결")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 30)
+
+
+async def _recv_loop(ws, broadcast, is_active, watches) -> None:
+    while is_active():
+        raw = await asyncio.wait_for(ws.recv(), timeout=60)
+        msg = json.loads(raw)
+        trnm = msg.get("trnm")
+        if trnm == "PING":
+            await ws.send(raw)  # echo 원문 그대로 (FR-02)
+            continue
+        if trnm == "REAL":
+            for d in msg.get("data", []):
+                await _on_real(ws, broadcast, watches, d)
+        # TTL 만료 정리
+        now = time.time()
+        for code in [c for c, w in watches.items() if w.expire < now]:
+            await _unsub(ws, code)
+            watches.pop(code, None)
+
+
+async def _on_real(ws, broadcast, watches, d: dict) -> None:
+    rtype = d.get("type")
+    item = (d.get("item") or "").replace("_NX", "").replace("_AL", "")
+    vals = d.get("values", {}) or {}
+    code = (vals.get(FID_CODE) or item or "").strip()
+    if not code:
+        return
+
+    is_nxt = "_NX" in (d.get("item") or "")
+
+    if rtype == RT_ORDER:
+        # 00 주문체결 스트림 (p.471 FID): 913 주문상태, 910 체결가, 911 체결량
+        await broadcast({
+            "type": "order_fill", "code": code, "name": vals.get("302", code),
+            "status": vals.get("913", ""), "ord_no": vals.get("9203", ""),
+            "side": "매수" if vals.get("907") == "2" else "매도" if vals.get("907") == "1" else "",
+            "ord_qty": round(_num(vals.get("900"))), "fill_price": round(_num(vals.get("910"))),
+            "fill_qty": round(_num(vals.get("911"))), "exchange": vals.get("2135", ""),
+            "ts": _now_iso(),
+        })
+        return
+
+    if rtype == RT_VI:
+        # VI 발동/해제 — docs p.529 FID 기준 파싱
+        gubun = (vals.get(FID_VI_GUBUN) or "정적").strip()
+        trigger = round(_num(vals.get(FID_VI_TRIGGER)))
+        rate = str(vals.get(FID_VI_RATE) or "").strip()
+        direction = "-" if rate.startswith("-") else "+"     # 발동가 등락율 부호
+        vi_pct = round(_num(rate), 2) or None                # 발동률(±10/±3 등)
+        released = bool((vals.get(FID_VI_RELEASE) or "").strip())
+        kind = "해제" if released else "발동"
+        name = vals.get(FID_NAME) or d.get("name", code)
+        if kind == "발동":
+            w = _Watch(code, name, trigger, gubun, direction, vi_pct)
+            watches[code] = w
+            await _sub_dynamic(ws, code)
+        await broadcast({"type": "vi", "code": code, "name": name, "kind": kind,
+                         "gubun": gubun, "direction": direction, "vi_pct": vi_pct,
+                         "trigger_price": trigger, "ts": _now_iso()})
+        # VI 발동 시 모의 매수 (1회). 체결은 00 스트림으로 수신
+        if kind == "발동" and VI_ARB_ORDER and not watches[code].ordered:
+            watches[code].ordered = True
+            await _place_mock_order(broadcast, watches[code])
+        return
+
+    w = watches.get(code)
+    if not w:
+        return
+
+    if not is_nxt:
+        # KRX 측: 0H 예상체결가(FID10) / 0B 첫 체결=랜덤엔드 재개
+        if rtype == RT_TRADE and not w.krx_resumed:
+            w.krx_resumed = True  # FR-06
+            await broadcast({"type": "krx_resume", "code": code, "name": w.name,
+                             "direction": w.direction, "randomend_sec": None, "ts": _now_iso()})
+        if rtype in (RT_EXPECTED, RT_TRADE):
+            w._krx = round(_num(vals.get(FID_PRICE)))
+    else:
+        # NXT 측: 0D 최우선매도호가(41)/잔량(61), 0B 매도호가(27) 보조
+        nxt_ask = round(_num(vals.get(FID_ASK1) or vals.get(FID_TRADE_ASK) or vals.get(FID_PRICE)))
+        krx_exp = getattr(w, "_krx", 0)
+        if nxt_ask > 0 and krx_exp > 0:
+            spread = krx_exp - nxt_ask
+            cost = krx_exp * TAX + (nxt_ask + krx_exp) * FEE
+            net = spread - cost
+            if w.first_buy is None:
+                w.first_buy = nxt_ask
+            w.max_profit_pct = max(w.max_profit_pct, (krx_exp - w.first_buy) / w.first_buy * 100)
+            await broadcast({
+                "type": "spread", "code": code, "name": w.name, "direction": w.direction,
+                "sec_since_vi": round(TTL_SEC - (w.expire - time.time()), 1),
+                "krx_expected": krx_exp, "nxt_best_ask": nxt_ask,
+                "nxt_ask_qty": round(_num(vals.get(FID_ASKQTY1))) or None,
+                "first_buy": w.first_buy, "spread": round(spread), "cost": round(cost),
+                "net_spread": round(net), "net_pct": round(net / nxt_ask * 100, 3),
+                "max_profit_pct": round(w.max_profit_pct, 3),
+                "opportunity": 1 if net > cost * (EDGE_BUFFER - 1) else 0, "ts": _now_iso(),
+            })
+
+
+async def _sub_dynamic(ws, code: str) -> None:
+    """VI 발동 종목 동적 구독: {code}_NX(0B,0D) / {code}(0B,예상) (FR-04)."""
+    # refresh="1": 기존 1h 구독 유지하며 추가 등록 (p.470 0=기존해지/1=유지)
+    await ws.send(json.dumps({"trnm": "REG", "grp_no": "2", "refresh": "1", "data": [
+        {"item": [f"{code}_NX"], "type": [RT_TRADE, RT_QUOTE]},   # NXT 체결+호가잔량
+        {"item": [code], "type": [RT_TRADE, RT_EXPECTED]},        # KRX 체결+예상체결(0H)
+    ]}))
+
+
+async def _unsub(ws, code: str) -> None:
+    await ws.send(json.dumps({"trnm": "REMOVE", "grp_no": "2", "data": [
+        {"item": [f"{code}_NX", code], "type": [RT_TRADE, RT_QUOTE, RT_EXPECTED]},
+    ]}))

@@ -13,6 +13,7 @@ import PlanVsActualChart from './components/PlanVsActualChart';
 import Sidebar from './components/Sidebar';
 import NewsPanel from './components/NewsPanel';
 import KrNewsPanel from './components/KrNewsPanel';
+import ViArbPanel from './components/ViArbPanel';
 import KrNightFutureBar from './components/KrNightFutureBar';
 import NewsGate, { isNewsAuthed, logoutNews, getNewsAuthExpiry } from './components/NewsGate';
 
@@ -53,6 +54,7 @@ function hashToRoute() {
   const h = (window.location.hash || '').replace('#', '');
   if (h === 'news') return 'news';
   if (h === 'kr-news') return 'kr-news';
+  if (h === 'vi-arb') return 'vi-arb';
   return 'tqqq';
 }
 
@@ -373,6 +375,7 @@ export default function App() {
             onCancel={() => { window.location.hash = 'tqqq'; }}
           />
         ))}
+        {route === 'vi-arb' && <ViArbPanel />}
         {route === 'tqqq' && (
           <div className="sponsor-card">
             <span style={{ fontSize: '22px' }}>☕</span>

@@ -1,5 +1,5 @@
 """API 엔드포인트"""
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from typing import Optional
 
@@ -369,3 +369,17 @@ async def discord_interactions(request: Request):
         })
 
     return JSONResponse({"type": PONG})
+
+
+@router.websocket("/ws/vi-arb")
+async def ws_vi_arb(ws: WebSocket):
+    """VI 차익거래 실시간 관측 스트림 (rq-01). A단계 mock 피드 → FE push."""
+    from services.vi_arb import hub
+    await hub.connect(ws)
+    try:
+        while True:
+            await ws.receive_text()  # 클라이언트 메시지는 keep-alive 용도로만 수신
+    except WebSocketDisconnect:
+        hub.disconnect(ws)
+    except Exception:
+        hub.disconnect(ws)

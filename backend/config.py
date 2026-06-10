@@ -85,17 +85,61 @@ _KIS_REAL_URL = "https://openapi.koreainvestment.com:9443"
 KIS_BASE_URL = os.getenv("KIS_BASE_URL", _KIS_MOCK_URL if KIS_MOCK else _KIS_REAL_URL)
 
 # 키움증권 REST API (KR 데이터 자체 수집용 — 100m1s 미러 대체)
-# KIS 와 달리 실전/모의 모두 동일 도메인(api.kiwoom.com)으로 호출.
-# 투자구분(실전/모의)은 도메인이 아니라 appkey 자체에 포함됨.
-KIWOOM_APP_KEY = os.getenv("KIWOOM_APP_KEY", "")
-KIWOOM_APP_SECRET = os.getenv("KIWOOM_APP_SECRET", "")
-KIWOOM_MODE = os.getenv("KIWOOM_MODE", "mock").lower()  # mock | real (appkey 종류 라벨)
-KIWOOM_BASE_URL = os.getenv("KIWOOM_BASE_URL", "https://api.kiwoom.com")
+# ── Kiwoom 환경 맵 (mock / real) ──────────────────────────────────────────
+# env 를 모드별 dict 로 로딩해 사용. 각 환경: app_key·app_secret·base_url·account.
+#   mock: 모의투자(mockapi.kiwoom.com, KRX만 지원) — 주문/체결 테스트용 (계좌 81277130)
+#   real: 실전(api.kiwoom.com) — 관측·시세용
+# 우선순위: KIWOOM_{MOCK|REAL}_* > (mock 한정) 레거시 KIWOOM_ORDER_* / KIWOOM_* 폴백
+def _kiwoom_env(mode: str, base_default: str, legacy_key="", legacy_secret="", legacy_acct="") -> dict:
+    p = f"KIWOOM_{mode.upper()}"
+    return {
+        "app_key": os.getenv(f"{p}_APP_KEY", legacy_key),
+        "app_secret": os.getenv(f"{p}_APP_SECRET", legacy_secret),
+        "base_url": os.getenv(f"{p}_BASE_URL", base_default),
+        "account": os.getenv(f"{p}_ACCOUNT", legacy_acct),
+    }
+
+KIWOOM_ENVS = {
+    "mock": _kiwoom_env("MOCK", "https://mockapi.kiwoom.com",
+                        legacy_key=os.getenv("KIWOOM_ORDER_APP_KEY", ""),
+                        legacy_secret=os.getenv("KIWOOM_ORDER_APP_SECRET", ""),
+                        legacy_acct=os.getenv("KIWOOM_ACCOUNT", "")),
+    "real": _kiwoom_env("REAL", "https://api.kiwoom.com",
+                        legacy_key=os.getenv("KIWOOM_APP_KEY", ""),
+                        legacy_secret=os.getenv("KIWOOM_APP_SECRET", ""),
+                        legacy_acct=os.getenv("KIWOOM_ACCOUNT_REAL", "62596885")),  # 데이터키 계좌
+}
+KIWOOM_MODE = os.getenv("KIWOOM_MODE", "mock").lower()              # 활성 모드 (기본 mock)
+KIWOOM_ENV = KIWOOM_ENVS.get(KIWOOM_MODE, KIWOOM_ENVS["mock"])      # 활성 환경 dict
+
+# 데이터 파이프라인(ka10081 일봉)용 플랫 별칭 — 활성 모드(KIWOOM_MODE) 환경에서 파생.
+# 기본 mock. real 데이터/관측이 필요하면 KIWOOM_MODE=real 또는 KIWOOM_ENVS["real"] 직접 사용.
+# (주문은 항상 KIWOOM_ENVS["mock"] — kiwoom_order 전용)
+KIWOOM_APP_KEY = KIWOOM_ENV["app_key"]
+KIWOOM_APP_SECRET = KIWOOM_ENV["app_secret"]
+KIWOOM_BASE_URL = os.getenv("KIWOOM_BASE_URL", KIWOOM_ENV["base_url"])
+
+# VI 차익거래 관측 데이터 소스: mock(시뮬) | kiwoom(실연동 관측 전용, rq-01 FR-01~06)
+VI_ARB_SOURCE = os.getenv("VI_ARB_SOURCE", "mock").lower()
+# 관측 WS 환경: real 필수(NXT 차익 괴리는 mockapi 미지원). 주문은 별도로 항상 mock.
+VI_ARB_OBS_ENV = os.getenv("VI_ARB_OBS_ENV", "real").lower()
+# 1h 전종목 등록 불가 대비 감시 유니버스 (쉼표구분 종목코드). 비면 전종목 시도.
+VI_ARB_UNIVERSE = [c.strip() for c in os.getenv("VI_ARB_UNIVERSE", "").split(",") if c.strip()]
+# 모의 체결 시도(rq-01 Phase): true 시 VI 종목에 모의 주문. ⚠️ KIWOOM_ENVS["mock"]만 사용.
+VI_ARB_ORDER = os.getenv("VI_ARB_ORDER", "false").lower() == "true"
+VI_ARB_ORDER_QTY = int(os.getenv("VI_ARB_ORDER_QTY", "1"))          # 모의 주문 수량
 
 # KR 뉴스 정리(interpreted) 레이어용 — 뉴스 소스(네이버) + LLM 가공(Gemini)
 # 발급 안내: docs/kr-data-sources.md §2(네이버), §3(Gemini)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")  # 무료 tier 권장
+
+# 뉴스 분석 LLM 백엔드 분기:
+#   NEWS_LLM=gemini      → Gemini API (GEMINI_MODEL)
+#   NEWS_LLM=claude_cli  → claude CLI 헤드리스 (NEWS_CLAUDE_MODEL: haiku|sonnet|opus)
+# Gemini 무료 쿼터 소진 시 claude_cli 로 우회 가능
+NEWS_LLM = os.getenv("NEWS_LLM", "gemini").lower()
+NEWS_CLAUDE_MODEL = os.getenv("NEWS_CLAUDE_MODEL", "sonnet")  # 최신: haiku|sonnet(4.6)|opus(4.8)
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "")
 

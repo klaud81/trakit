@@ -485,3 +485,89 @@ def get_price_history(symbol: str = SYMBOL, period: str = "6mo") -> list:
         return records
     except Exception:
         return []
+
+
+def _fetch_kis_daily_one(symbol: str, excd: str, token: str, bymd: str) -> list:
+    """KIS 해외주식 기간별시세(HHDFS76240000) 1콜 → 일봉 리스트(내림차순, 최대 ~100).
+
+    bymd: 조회 기준일(YYYYMMDD). "" 이면 최신부터. 페이지네이션은 이전 배치의
+    가장 오래된 일자-1 을 bymd 로 다시 호출.
+    """
+    from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
+    try:
+        resp = requests.get(
+            f"{KIS_BASE_URL}/uapi/overseas-price/v1/quotations/dailyprice",
+            headers={
+                "authorization": f"Bearer {token}",
+                "appkey": KIS_APP_KEY,
+                "appsecret": KIS_APP_SECRET,
+                "tr_id": "HHDFS76240000",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+            params={"AUTH": "", "EXCD": excd, "SYMB": symbol,
+                    "GUBN": "0", "BYMD": bymd, "MODP": "1"},  # GUBN0=일, MODP1=수정주가
+            timeout=10,
+        )
+        resp.raise_for_status()
+        rows = resp.json().get("output2", []) or []
+    except Exception as e:
+        logger.warning(f"KIS daily failed (excd={excd}, symbol={symbol}): {e}")
+        return []
+    out = []
+    for r in rows:
+        ymd = r.get("xymd") or ""
+        try:
+            c = float(r.get("clos") or 0)
+        except (ValueError, TypeError):
+            continue
+        if len(ymd) != 8 or c <= 0:
+            continue
+        out.append({
+            "date": f"{ymd[:4]}-{ymd[4:6]}-{ymd[6:]}",
+            "open": round(float(r.get("open") or c), 2),
+            "high": round(float(r.get("high") or c), 2),
+            "low": round(float(r.get("low") or c), 2),
+            "close": round(c, 2),
+            "volume": int(float(r.get("tvol") or 0)),
+        })
+    return out
+
+
+def get_overseas_daily(symbol: str = SYMBOL, days: int = 130) -> list:
+    """KIS 해외 일봉 우선 조회 → 실패 시 Yahoo(get_price_history) fallback.
+
+    반환: {date,open,high,low,close,volume} 오름차순 리스트 (get_price_history 동일 포맷).
+    라이브 예측이 KIS 실시간을 쓰므로 백테스트도 동일 소스로 캘리브레이션하기 위함.
+    """
+    sym = symbol.upper()
+    token = _get_kis_token()
+    if token:
+        excd = EXCHANGE_MAP.get(sym) or _EXCD_DISCOVERY.get(sym)
+        candidates = [excd] if excd else ["NAS", "NYS", "AMS"]
+        for cand in candidates:
+            if not cand:
+                continue
+            merged, bymd, seen = [], "", set()
+            for _ in range((days // 90) + 2):  # 1콜 ~100봉 → 페이지네이션
+                batch = _fetch_kis_daily_one(sym, cand, token, bymd)
+                if not batch:
+                    break
+                new = [b for b in batch if b["date"] not in seen]
+                if not new:
+                    break
+                merged += new
+                seen.update(b["date"] for b in new)
+                if len(merged) >= days:
+                    break
+                oldest = min(b["date"] for b in new).replace("-", "")
+                # 가장 오래된 일자 - 1일 (문자열 감산 회피: 그대로 줘도 중복은 seen 으로 컷)
+                bymd = oldest
+            if merged:
+                if not excd:
+                    _EXCD_DISCOVERY[sym] = cand
+                    logger.info(f"🔍 KIS 일봉 EXCD 디스커버리: {sym} → {cand}")
+                merged.sort(key=lambda b: b["date"])
+                return merged[-days:]
+    # fallback
+    logger.info(f"KIS 일봉 실패/미설정 → Yahoo fallback ({sym})")
+    return get_price_history(sym, period="6mo")

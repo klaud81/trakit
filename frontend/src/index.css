@@ -725,3 +725,64 @@ body {
   .sponsor-card-text span { font-size: 14px !important; }
   .sponsor-card-copy { font-size: 14px; }
 }
+
+/* ── VI 차익거래 관측 패널 ───────────────────────────── */
+.vi-arb { display: flex; flex-direction: column; gap: 16px; }
+.vi-arb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.vi-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 20px; background: var(--muted-bg); white-space: nowrap; }
+.vi-status .vi-dot { width: 8px; height: 8px; border-radius: 50%; background: #E53935; }
+.vi-status.on { color: #2ECC71; } .vi-status.on .vi-dot { background: #2ECC71; box-shadow: 0 0 8px #2ECC71; animation: vi-pulse 1.6s infinite; }
+.vi-status.off { color: var(--text-muted); }
+@keyframes vi-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.vi-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.vi-stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }
+.vi-stat span { font-size: 12px; color: var(--text-muted); }
+.vi-stat b { font-size: 22px; }
+.vi-stat-params b { font-weight: 500; color: var(--text-muted); }
+
+.vi-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .vi-grid { grid-template-columns: 1fr; } }
+.vi-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.vi-card-title { padding: 12px 16px; font-weight: 700; font-size: 14px; border-bottom: 1px solid var(--border); }
+.vi-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+.vi-table-wrap { max-height: 460px; overflow-y: auto; }
+.vi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vi-table th { position: sticky; top: 0; background: var(--muted-bg); color: var(--text-muted); font-weight: 600; text-align: right; padding: 8px 10px; font-size: 11px; }
+.vi-table th:first-child { text-align: left; }
+.vi-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--border); }
+.vi-table td:first-child { text-align: left; }
+.vi-opp-row { animation: vi-flash 0.6s ease-out; }
+@keyframes vi-flash { from { background: rgba(46,204,113,0.18); } to { background: transparent; } }
+.vi-code { font-size: 11px; color: var(--text-muted); margin-left: 6px; }
+.vi-net { color: #2ECC71; font-weight: 700; }
+
+.vi-log { max-height: 460px; overflow-y: auto; padding: 8px 0; }
+.vi-log-row { display: flex; gap: 10px; padding: 7px 16px; font-size: 13px; border-bottom: 1px solid var(--border); align-items: baseline; }
+.vi-log-ts { font-variant-numeric: tabular-nums; color: var(--text-muted); font-size: 11px; min-width: 56px; }
+.vi-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; margin-right: 6px; }
+.vi-badge.trig { background: rgba(229,57,53,0.18); color: #E53935; }
+.vi-badge.rel { background: rgba(30,136,229,0.18); color: #1E88E5; }
+.vi-re { color: var(--primary); }
+
+/* VI 방향 필터 (+/-) */
+.vi-filter { display: inline-flex; gap: 6px; background: var(--muted-bg); padding: 4px; border-radius: 10px; align-self: flex-start; }
+.vi-filter-btn { border: none; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 7px; cursor: pointer; transition: all 0.15s; }
+.vi-filter-btn:hover { color: var(--text); }
+.vi-filter-btn.active { background: var(--card); color: var(--text); }
+.vi-filter-btn.active.up { color: #E53935; }
+.vi-filter-btn.active.down { color: #1E88E5; }
+.vi-dir { font-size: 11px; margin-right: 5px; font-weight: 700; }
+.vi-dir.up { color: #E53935; } .vi-dir.down { color: #1E88E5; }
+
+/* 순이익% / 최대수익% */
+.vi-pct { font-size: 11px; color: #2ECC71; margin-left: 5px; font-weight: 600; }
+.vi-max { color: var(--primary); font-weight: 700; }
+
+/* VI 단계 배지 (정적/동적) */
+.vi-stage { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; }
+.vi-stage.static { background: rgba(255,132,0,0.16); color: var(--primary); }
+.vi-stage.dynamic { background: rgba(139,141,151,0.18); color: var(--text-muted); }
+.vi-badge.sim { background: rgba(46,204,113,0.18); color: #2ECC71; }
+.vi-badge.ord { background: rgba(255,132,0,0.18); color: var(--primary); }

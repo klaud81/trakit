@@ -11,6 +11,7 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
+        ws: true, // /api/ws/* WebSocket 프록시 (VI 차익거래 실시간)
       },
     },
   },

@@ -4,6 +4,7 @@ const MENU = [
   { key: 'news', label: '뉴스', icon: '📰' },
   { key: 'kr-news', label: 'KR 뉴스', icon: '🇰🇷' },
   { key: 'tqqq', label: 'TQQQ', icon: '📊' },
+  { key: 'vi-arb', label: 'VI 차익', icon: '⚡' },
 ];
 
 function hashToKey() {
