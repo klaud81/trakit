@@ -25,3 +25,4 @@ data/briefing.db
 data/visitors.json
 # 대용량 참조 문서(로컬 보관) — rq-01-001.md 에 위치만 기록
 docs/kiwoom-rest-api.pdf
+data/vi_arb.db

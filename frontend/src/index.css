@@ -786,3 +786,10 @@ body {
 .vi-stage.dynamic { background: rgba(139,141,151,0.18); color: var(--text-muted); }
 .vi-badge.sim { background: rgba(46,204,113,0.18); color: #2ECC71; }
 .vi-badge.ord { background: rgba(255,132,0,0.18); color: var(--primary); }
+
+/* 모의계좌 잔고 바 */
+.vi-balance { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 18px; }
+.vi-bal-acct { font-weight: 700; font-size: 14px; color: var(--primary); }
+.vi-bal-item { display: flex; flex-direction: column; gap: 2px; }
+.vi-bal-item span { font-size: 11px; color: var(--text-muted); }
+.vi-bal-item b { font-size: 16px; }

@@ -371,6 +371,20 @@ async def discord_interactions(request: Request):
     return JSONResponse({"type": PONG})
 
 
+@router.get("/vi-arb/stats")
+async def vi_arb_stats():
+    """수집된 VI 차익거래 데이터 적재 현황 (백테스트용 SQLite)."""
+    from services.vi_arb_store import stats
+    return stats()
+
+
+@router.get("/vi-arb/balance")
+async def vi_arb_balance():
+    """모의계좌(81277130) 평가현황 — 예수금·평가액·손익·보유종목 (kt00004)."""
+    from services.kiwoom_order import get_balance
+    return get_balance()
+
+
 @router.websocket("/ws/vi-arb")
 async def ws_vi_arb(ws: WebSocket):
     """VI 차익거래 실시간 관측 스트림 (rq-01). A단계 mock 피드 → FE push."""

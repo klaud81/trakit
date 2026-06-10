@@ -57,6 +57,41 @@ def _order_token() -> str | None:
     return None
 
 
+def _won(s) -> int:
+    """0-padding 부호 12자리 문자열 → 정수 (int() 가 leading-zero/부호 처리)."""
+    try:
+        return int(str(s).strip() or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def get_balance() -> dict:
+    """모의계좌 평가현황 조회 (kt00004): 예수금·평가액·손익·보유종목."""
+    if not _is_mock():
+        return {"ok": False, "reason": "모의 도메인 아님"}
+    token = _order_token()
+    if not token:
+        return {"ok": False, "reason": "토큰 없음"}
+    try:
+        r = _post("/api/dostk/acnt", {"qry_tp": "0", "dmst_stex_tp": "KRX"},
+                  {"authorization": f"Bearer {token}", "api-id": "kt00004"})
+    except Exception as e:
+        return {"ok": False, "reason": str(e)}
+    holdings = [{"code": (h.get("stk_cd") or "")[-6:], "name": h.get("stk_nm", ""),
+                 "qty": _won(h.get("rmnd_qty")), "avg": _won(h.get("avg_prc")),
+                 "cur": _won(h.get("cur_prc")), "evlt": _won(h.get("evlt_amt")),
+                 "pl": _won(h.get("pl_amt")), "pl_rt": h.get("pl_rt", "")}
+                for h in (r.get("stk_acnt_evlt_prst") or [])]
+    return {"ok": str(r.get("return_code", "0")) in ("0", "None"),
+            "account": _MOCK.get("account", ""),
+            "deposit": _won(r.get("entr")), "d2_deposit": _won(r.get("d2_entra")),
+            "stock_value": _won(r.get("tot_est_amt")), "asset_value": _won(r.get("aset_evlt_amt")),
+            "buy_amount": _won(r.get("tot_pur_amt")), "est_asset": _won(r.get("prsm_dpst_aset_amt")),
+            "today_pl": _won(r.get("tdy_lspft")), "total_pl": _won(r.get("lspft")),
+            "today_pl_rt": r.get("tdy_lspft_rt", ""), "holdings": holdings,
+            "return_msg": r.get("return_msg", "")}
+
+
 def get_account() -> dict:
     """현재 토큰의 모의계좌번호 조회 (ka00001). 계좌는 토큰(app key)에 귀속됨."""
     if not _is_mock():

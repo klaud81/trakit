@@ -20,8 +20,24 @@ export default function ViArbPanel() {
   const [stats, setStats] = useState({ vi: 0, opp: 0, ticks: 0 });
   const [sim, setSim] = useState({ fills: 0, wins: 0, pnl: 0 }); // Phase2 모의 체결
   const [dir, setDir] = useState('all'); // VI 방향 필터: all | + (상방) | - (하방)
+  const [bal, setBal] = useState(null);  // 모의계좌 잔고 (kt00004)
   const wsRef = useRef(null);
   const retryRef = useRef(null);
+
+  // 모의계좌 잔고 폴링 (15초 + 체결 시 갱신)
+  useEffect(() => {
+    let stop = false;
+    const fetchBal = async () => {
+      try {
+        const r = await fetch('/api/vi-arb/balance');
+        const b = await r.json();
+        if (!stop && b.ok) setBal(b);
+      } catch { /* noop */ }
+    };
+    fetchBal();
+    const t = setInterval(fetchBal, 15000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     let closed = false;
@@ -101,6 +117,21 @@ export default function ViArbPanel() {
           </button>
         ))}
       </div>
+
+      {bal && (
+        <div className="vi-balance">
+          <span className="vi-bal-acct">🏦 모의계좌 {bal.account}</span>
+          <div className="vi-bal-item"><span>예수금</span><b>{fmt(bal.deposit)}원</b></div>
+          <div className="vi-bal-item"><span>예탁자산평가</span><b>{fmt(bal.asset_value)}원</b></div>
+          <div className="vi-bal-item">
+            <span>당일손익</span>
+            <b style={{ color: bal.today_pl >= 0 ? '#E53935' : '#1E88E5' }}>
+              {bal.today_pl >= 0 ? '+' : ''}{fmt(bal.today_pl)}원 ({bal.today_pl_rt}%)
+            </b>
+          </div>
+          <div className="vi-bal-item"><span>보유종목</span><b>{bal.holdings?.length || 0}종목</b></div>
+        </div>
+      )}
 
       <div className="vi-stats">
         <div className="vi-stat"><span>VI 발동</span><b>{stats.vi}</b></div>
