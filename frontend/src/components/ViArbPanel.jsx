@@ -106,16 +106,25 @@ export default function ViArbPanel() {
         </div>
       </div>
 
-      <div className="vi-filter" role="group" aria-label="VI 방향 필터">
-        {[['all', '전체'], ['+', '▲ 상방 VI'], ['-', '▼ 하방 VI']].map(([v, label]) => (
-          <button
-            key={v}
-            className={`vi-filter-btn ${dir === v ? 'active' : ''} ${v === '+' ? 'up' : v === '-' ? 'down' : ''}`}
-            onClick={() => setDir(v)}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="vi-controls">
+        <div className="vi-filter" role="group" aria-label="VI 방향 필터">
+          {[['all', '전체'], ['+', '▲ 상방 VI'], ['-', '▼ 하방 VI']].map(([v, label]) => (
+            <button
+              key={v}
+              className={`vi-filter-btn ${dir === v ? 'active' : ''} ${v === '+' ? 'up' : v === '-' ? 'down' : ''}`}
+              onClick={() => setDir(v)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          className="vi-clear"
+          onClick={() => { setOpps([]); setEvents([]); setStats({ vi: 0, opp: 0, ticks: 0 }); setSim({ fills: 0, wins: 0, pnl: 0 }); }}
+          title="기회 포착·VI 이벤트 로그 전체 비우기"
+        >
+          🗑 전체 비우기
+        </button>
       </div>
 
       {bal && (

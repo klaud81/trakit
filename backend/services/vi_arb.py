@@ -108,8 +108,8 @@ class ViArbHub:
         logger.info(f"⚡ VI-arb WS 종료 (clients={len(self._clients)})")
 
     async def _broadcast(self, msg: dict) -> None:
-        # 백테스트용 영속화 (rq-01 FR-07). hello 는 제외.
-        if msg.get("type") != "hello":
+        # 백테스트용 영속화 (rq-01 FR-07) — 실데이터(kiwoom)만 저장. 시뮬(mock)은 제외.
+        if self.mode == "kiwoom" and msg.get("type") != "hello":
             try:
                 from services import vi_arb_store
                 vi_arb_store.record(msg, self.mode)

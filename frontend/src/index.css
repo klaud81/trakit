@@ -793,3 +793,8 @@ body {
 .vi-bal-item { display: flex; flex-direction: column; gap: 2px; }
 .vi-bal-item span { font-size: 11px; color: var(--text-muted); }
 .vi-bal-item b { font-size: 16px; }
+
+/* 컨트롤 행(필터 + 비우기) */
+.vi-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.vi-clear { border: 1px solid var(--border); background: var(--muted-bg); color: var(--text-muted); font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+.vi-clear:hover { color: #E53935; border-color: #E53935; }
