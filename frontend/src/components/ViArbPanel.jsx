@@ -127,6 +127,7 @@ export default function ViArbPanel() {
   const [selling, setSelling] = useState(false);
   const [sellingCode, setSellingCode] = useState(null); // 개별 매도 진행중 종목
   const [sellProgress, setSellProgress] = useState(null); // 일괄매도 진행률 0~100 (null=숨김)
+  const [pendingSell, setPendingSell] = useState(() => new Set()); // 매도 접수돼 체결 대기중 종목코드
   const refreshBal = () => fetch('/api/vi-arb/balance').then((r) => r.json())
     .then((b) => { if (b && b.ok) setBal(b); }).catch(() => {});
   const sellAll = async () => {
@@ -134,6 +135,8 @@ export default function ViArbPanel() {
     if (!window.confirm('모의계좌 전 보유종목을 시장가로 일괄매도할까요?')) return;
     setSelling(true);
     setSellProgress(0);
+    // 일괄매도 등록 → 전 보유종목 버튼 즉시 '매도중' 표시
+    setPendingSell(new Set((bal?.holdings || []).map((h) => h.code)));
     // 서버가 종목당 ~0.3s throttle → 총 소요 추정해 진행바 애니메이션 (응답 전 95%까지)
     const total = bal?.holdings?.length || 1;
     const estMs = total * 350;
@@ -146,10 +149,13 @@ export default function ViArbPanel() {
       const d = await r.json();
       clearInterval(timer);
       setSellProgress(100);
+      // 접수 성공분만 '매도중' 유지 (실패분은 버튼 복구)
+      if (d.results) setPendingSell(new Set(d.results.filter((x) => x.ok).map((x) => x.code)));
       window.alert(d.ok ? `일괄매도 접수: ${d.sold}/${d.total} 종목` : `일괄매도 실패: ${d.reason || '오류'}`);
       refreshBal();
     } catch {
       clearInterval(timer);
+      setPendingSell(new Set());
       window.alert('일괄매도 요청 실패');
     } finally {
       setSelling(false);
@@ -166,6 +172,7 @@ export default function ViArbPanel() {
         body: JSON.stringify({ code: h.code, qty: h.qty }),
       });
       const d = await r.json();
+      if (d.ok) setPendingSell((s) => new Set(s).add(h.code));
       window.alert(d.ok ? `${h.name} 매도 접수 (주문 #${d.ord_no})` : `매도 실패: ${d.reason || '오류'}`);
       refreshBal();
     } catch {
@@ -253,7 +260,13 @@ export default function ViArbPanel() {
           <div className="vi-bal-item"><span>예수금</span><b>{fmt(bal.deposit)}원</b></div>
           <div className="vi-bal-item"><span>예탁자산평가</span><b>{fmt(bal.asset_value)}원</b></div>
           <div className="vi-bal-item">
-            <span>당일손익</span>
+            <span>평가손익 (미실현)</span>
+            <b style={{ color: (bal.eval_pl || 0) >= 0 ? '#E53935' : '#1E88E5' }}>
+              {(bal.eval_pl || 0) >= 0 ? '+' : ''}{fmt(bal.eval_pl)}원 ({(bal.eval_pl_rt || 0) >= 0 ? '+' : ''}{bal.eval_pl_rt}%)
+            </b>
+          </div>
+          <div className="vi-bal-item">
+            <span>당일손익 (실현)</span>
             <b style={{ color: bal.today_pl >= 0 ? '#E53935' : '#1E88E5' }}>
               {bal.today_pl >= 0 ? '+' : ''}{fmt(bal.today_pl)}원 ({bal.today_pl_rt}%)
             </b>
@@ -327,6 +340,7 @@ export default function ViArbPanel() {
                 </tr>
                 {bal.holdings.map((h) => {
                   const nr = netAfterCost(h, params);
+                  const sellBusy = sellingCode === h.code || pendingSell.has(h.code);
                   return (
                     <tr key={h.code}>
                       <td>
@@ -355,15 +369,16 @@ export default function ViArbPanel() {
                       <td>
                         <button
                           onClick={() => sellOne(h)}
-                          disabled={sellingCode === h.code}
+                          disabled={sellBusy}
                           title={`${h.name} 시장가 매도`}
                           style={{
                             padding: '3px 10px', borderRadius: 5, fontWeight: 700, fontSize: 12,
-                            border: '1px solid #E53935', cursor: sellingCode === h.code ? 'default' : 'pointer',
-                            color: '#E53935', background: 'transparent', opacity: sellingCode === h.code ? 0.5 : 1,
+                            border: '1px solid #E53935', cursor: sellBusy ? 'default' : 'pointer',
+                            color: sellBusy ? '#fff' : '#E53935',
+                            background: sellBusy ? '#E53935' : 'transparent', opacity: sellBusy ? 0.7 : 1,
                           }}
                         >
-                          {sellingCode === h.code ? '…' : '매도'}
+                          {sellBusy ? '매도중' : '매도'}
                         </button>
                       </td>
                     </tr>

@@ -82,11 +82,16 @@ def get_balance() -> dict:
                  "cur": _won(h.get("cur_prc")), "evlt": _won(h.get("evlt_amt")),
                  "pl": _won(h.get("pl_amt")), "pl_rt": h.get("pl_rt", "")}
                 for h in (r.get("stk_acnt_evlt_prst") or [])]
+    stock_value = _won(r.get("tot_est_amt"))      # 총평가금액(현재가)
+    buy_amount = _won(r.get("tot_pur_amt"))        # 총매입금액
+    eval_pl = stock_value - buy_amount             # 평가손익(미실현)
+    eval_pl_rt = round(eval_pl / buy_amount * 100, 2) if buy_amount else 0.0
     return {"ok": str(r.get("return_code", "0")) in ("0", "None"),
             "account": _MOCK.get("account", ""),
             "deposit": _won(r.get("entr")), "d2_deposit": _won(r.get("d2_entra")),
-            "stock_value": _won(r.get("tot_est_amt")), "asset_value": _won(r.get("aset_evlt_amt")),
-            "buy_amount": _won(r.get("tot_pur_amt")), "est_asset": _won(r.get("prsm_dpst_aset_amt")),
+            "stock_value": stock_value, "asset_value": _won(r.get("aset_evlt_amt")),
+            "buy_amount": buy_amount, "est_asset": _won(r.get("prsm_dpst_aset_amt")),
+            "eval_pl": eval_pl, "eval_pl_rt": eval_pl_rt,   # 미실현 평가손익
             "today_pl": _won(r.get("tdy_lspft")), "total_pl": _won(r.get("lspft")),
             "today_pl_rt": r.get("tdy_lspft_rt", ""), "holdings": holdings,
             "return_msg": r.get("return_msg", "")}
