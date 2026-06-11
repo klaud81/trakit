@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS spreads(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, source TEXT, code TEXT, name TEXT,
   direction TEXT, sec_since_vi REAL, krx_expected INTEGER, nxt_best_ask INTEGER,
   nxt_ask_qty INTEGER, spread INTEGER, cost INTEGER, net_spread INTEGER, net_pct REAL,
-  max_profit_pct REAL, first_buy INTEGER, opportunity INTEGER);
+  max_profit_pct REAL, first_buy INTEGER, opportunity INTEGER, single_price INTEGER);
 CREATE TABLE IF NOT EXISTS krx_resumes(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, source TEXT, code TEXT, name TEXT,
   randomend_sec REAL);
@@ -52,6 +52,10 @@ def _conn_get() -> sqlite3.Connection:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         _conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
         _conn.executescript(_SCHEMA)
+        # 마이그레이션: 기존 DB 의 spreads 에 single_price 컬럼 보강
+        cols = {r[1] for r in _conn.execute("PRAGMA table_info(spreads)")}
+        if "single_price" not in cols:
+            _conn.execute("ALTER TABLE spreads ADD COLUMN single_price INTEGER")
         _conn.commit()
     return _conn
 
@@ -70,12 +74,12 @@ def record(msg: dict, source: str = "kiwoom") -> None:
                            g("direction"), g("vi_pct"), g("trigger_price")))
             elif t == "spread":
                 c.execute("INSERT INTO spreads(ts,source,code,name,direction,sec_since_vi,krx_expected,"
-                          "nxt_best_ask,nxt_ask_qty,spread,cost,net_spread,net_pct,max_profit_pct,first_buy,opportunity)"
-                          " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                          "nxt_best_ask,nxt_ask_qty,spread,cost,net_spread,net_pct,max_profit_pct,first_buy,opportunity,single_price)"
+                          " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                           (g("ts"), source, g("code"), g("name"), g("direction"), g("sec_since_vi"),
                            g("krx_expected"), g("nxt_best_ask"), g("nxt_ask_qty"), g("spread"),
                            g("cost"), g("net_spread"), g("net_pct"), g("max_profit_pct"),
-                           g("first_buy"), g("opportunity")))
+                           g("first_buy"), g("opportunity"), g("single_price")))
             elif t == "krx_resume":
                 c.execute("INSERT INTO krx_resumes(ts,source,code,name,randomend_sec) VALUES(?,?,?,?,?)",
                           (g("ts"), source, g("code"), g("name"), g("randomend_sec")))
@@ -106,6 +110,7 @@ def stats() -> dict:
             "vi_events": n("SELECT COUNT(*) FROM vi_events"),
             "spreads": n("SELECT COUNT(*) FROM spreads"),
             "opportunities": n("SELECT COUNT(*) FROM spreads WHERE opportunity=1"),
+            "opportunities_single": n("SELECT COUNT(*) FROM spreads WHERE opportunity=1 AND single_price=1"),
             "krx_resumes": n("SELECT COUNT(*) FROM krx_resumes"),
             "orders": n("SELECT COUNT(*) FROM orders"),
             "order_fills": n("SELECT COUNT(*) FROM order_fills"),
