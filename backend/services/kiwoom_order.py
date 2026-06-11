@@ -153,20 +153,27 @@ def place_order(stk_cd: str, side: str = "buy", qty: int | None = None,
         return {"ok": False, "reason": str(e)}
 
 
+_SELL_THROTTLE_SEC = 0.3   # 주문 간 간격 (Kiwoom 429 레이트리밋 회피, ~3건/초)
+
+
 def sell_all() -> dict:
-    """모의계좌 전 보유종목 시장가 일괄매도 (보유수량 전량)."""
+    """모의계좌 전 보유종목 시장가 일괄매도 (보유수량 전량).
+    Kiwoom 429(Too Many Requests) 회피: 주문 간 throttle + 429 시 1회 재시도."""
     if not _is_mock():
         return {"ok": False, "reason": "모의 도메인 아님", "results": []}
     bal = get_balance()
     if not bal.get("ok"):
         return {"ok": False, "reason": bal.get("reason", "잔고조회 실패"), "results": []}
+    holds = [h for h in bal.get("holdings", []) if (h.get("qty") or 0) > 0]
     results = []
-    for h in bal.get("holdings", []):
-        qty = h.get("qty") or 0
-        if qty <= 0:
-            continue
-        r = place_order(h["code"], "sell", qty=qty, price=None, exchange="KRX")  # 시장가
-        results.append({"code": h["code"], "name": h.get("name"), "qty": qty,
+    for i, h in enumerate(holds):
+        if i:
+            time.sleep(_SELL_THROTTLE_SEC)
+        r = place_order(h["code"], "sell", qty=h["qty"], price=None, exchange="KRX")  # 시장가
+        if not r.get("ok") and "429" in str(r.get("reason", "")):
+            time.sleep(1.0)   # 레이트리밋 → 잠시 후 1회 재시도
+            r = place_order(h["code"], "sell", qty=h["qty"], price=None, exchange="KRX")
+        results.append({"code": h["code"], "name": h.get("name"), "qty": h["qty"],
                         "ok": r.get("ok"), "ord_no": r.get("ord_no"), "reason": r.get("reason", "")})
     sold = sum(1 for x in results if x["ok"])
     logger.info(f"💸 일괄매도: {sold}/{len(results)} 종목 접수")

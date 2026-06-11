@@ -126,21 +126,34 @@ export default function ViArbPanel() {
   };
   const [selling, setSelling] = useState(false);
   const [sellingCode, setSellingCode] = useState(null); // 개별 매도 진행중 종목
+  const [sellProgress, setSellProgress] = useState(null); // 일괄매도 진행률 0~100 (null=숨김)
   const refreshBal = () => fetch('/api/vi-arb/balance').then((r) => r.json())
     .then((b) => { if (b && b.ok) setBal(b); }).catch(() => {});
   const sellAll = async () => {
     if (selling) return;
     if (!window.confirm('모의계좌 전 보유종목을 시장가로 일괄매도할까요?')) return;
     setSelling(true);
+    setSellProgress(0);
+    // 서버가 종목당 ~0.3s throttle → 총 소요 추정해 진행바 애니메이션 (응답 전 95%까지)
+    const total = bal?.holdings?.length || 1;
+    const estMs = total * 350;
+    const start = Date.now();
+    const timer = setInterval(() => {
+      setSellProgress(Math.min(95, ((Date.now() - start) / estMs) * 100));
+    }, 200);
     try {
       const r = await fetch('/api/vi-arb/sell-all', { method: 'POST' });
       const d = await r.json();
+      clearInterval(timer);
+      setSellProgress(100);
       window.alert(d.ok ? `일괄매도 접수: ${d.sold}/${d.total} 종목` : `일괄매도 실패: ${d.reason || '오류'}`);
       refreshBal();
     } catch {
+      clearInterval(timer);
       window.alert('일괄매도 요청 실패');
     } finally {
       setSelling(false);
+      setTimeout(() => setSellProgress(null), 800);
     }
   };
   const sellOne = async (h) => {
@@ -268,6 +281,16 @@ export default function ViArbPanel() {
       {bal?.holdings?.length > 0 && (
         <div className="vi-card" style={{ marginBottom: 12 }}>
           <div className="vi-card-title">💼 모의 매수 보유 종목 · 세후 손익 (수수료+세금 포함)</div>
+          {sellProgress != null && (
+            <div style={{ margin: '0 0 8px' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>
+                일괄매도 진행 중… {Math.round(sellProgress)}%
+              </div>
+              <div style={{ height: 6, background: 'rgba(255,255,255,.1)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${sellProgress}%`, background: '#E53935', transition: 'width .2s' }} />
+              </div>
+            </div>
+          )}
           <div className="vi-table-wrap">
             <table className="vi-table">
               <thead>
