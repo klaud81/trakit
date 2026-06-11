@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS spreads(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, source TEXT, code TEXT, name TEXT,
   direction TEXT, sec_since_vi REAL, krx_expected INTEGER, nxt_best_ask INTEGER,
   nxt_ask_qty INTEGER, spread INTEGER, cost INTEGER, net_spread INTEGER, net_pct REAL,
-  max_profit_pct REAL, first_buy INTEGER, opportunity INTEGER, single_price INTEGER);
+  max_profit_pct REAL, first_buy INTEGER, opportunity INTEGER, single_price INTEGER, side TEXT);
 CREATE TABLE IF NOT EXISTS krx_resumes(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, source TEXT, code TEXT, name TEXT,
   randomend_sec REAL);
@@ -56,6 +56,8 @@ def _conn_get() -> sqlite3.Connection:
         cols = {r[1] for r in _conn.execute("PRAGMA table_info(spreads)")}
         if "single_price" not in cols:
             _conn.execute("ALTER TABLE spreads ADD COLUMN single_price INTEGER")
+        if "side" not in cols:
+            _conn.execute("ALTER TABLE spreads ADD COLUMN side TEXT")
         _conn.commit()
     return _conn
 
@@ -74,12 +76,12 @@ def record(msg: dict, source: str = "kiwoom") -> None:
                            g("direction"), g("vi_pct"), g("trigger_price")))
             elif t == "spread":
                 c.execute("INSERT INTO spreads(ts,source,code,name,direction,sec_since_vi,krx_expected,"
-                          "nxt_best_ask,nxt_ask_qty,spread,cost,net_spread,net_pct,max_profit_pct,first_buy,opportunity,single_price)"
-                          " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                          "nxt_best_ask,nxt_ask_qty,spread,cost,net_spread,net_pct,max_profit_pct,first_buy,opportunity,single_price,side)"
+                          " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                           (g("ts"), source, g("code"), g("name"), g("direction"), g("sec_since_vi"),
                            g("krx_expected"), g("nxt_best_ask"), g("nxt_ask_qty"), g("spread"),
                            g("cost"), g("net_spread"), g("net_pct"), g("max_profit_pct"),
-                           g("first_buy"), g("opportunity"), g("single_price")))
+                           g("first_buy"), g("opportunity"), g("single_price"), g("side")))
             elif t == "krx_resume":
                 c.execute("INSERT INTO krx_resumes(ts,source,code,name,randomend_sec) VALUES(?,?,?,?,?)",
                           (g("ts"), source, g("code"), g("name"), g("randomend_sec")))

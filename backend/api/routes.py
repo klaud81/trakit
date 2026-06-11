@@ -1,5 +1,5 @@
 """API 엔드포인트"""
-from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from typing import Optional
 
@@ -383,6 +383,42 @@ async def vi_arb_balance():
     """모의계좌(81277130) 평가현황 — 예수금·평가액·손익·보유종목 (kt00004)."""
     from services.kiwoom_order import get_balance
     return get_balance()
+
+
+@router.get("/vi-arb/order-control")
+async def vi_arb_order_control_get():
+    """모의주문 제어 현재 상태 (enabled, dir)."""
+    from services import vi_arb_kiwoom
+    return vi_arb_kiwoom.get_order_control()
+
+
+@router.post("/vi-arb/order-control")
+async def vi_arb_order_control_set(payload: dict = Body(default={})):
+    """모의주문 시작/종료 + 방향 스코프 (FE 토글). body: {enabled: bool, dir: 'all'|'+'|'-'}."""
+    from services import vi_arb_kiwoom
+    state = vi_arb_kiwoom.set_order_control(payload.get("enabled", False), payload.get("dir", "all"))
+    return {"ok": True, **state}
+
+
+@router.post("/vi-arb/sell-all")
+async def vi_arb_sell_all():
+    """모의계좌 전 보유종목 시장가 일괄매도."""
+    import asyncio
+    from services.kiwoom_order import sell_all
+    return await asyncio.get_event_loop().run_in_executor(None, sell_all)
+
+
+@router.post("/vi-arb/sell")
+async def vi_arb_sell_one(payload: dict = Body(default={})):
+    """개별 보유종목 시장가 매도. body: {code, qty}."""
+    code = (payload.get("code") or "").strip()
+    qty = int(payload.get("qty") or 0)
+    if not code or qty <= 0:
+        return {"ok": False, "reason": "code/qty 필요"}
+    import asyncio
+    from services.kiwoom_order import place_order
+    return await asyncio.get_event_loop().run_in_executor(
+        None, lambda: place_order(code, "sell", qty=qty, price=None, exchange="KRX"))
 
 
 @router.websocket("/ws/vi-arb")

@@ -11,6 +11,18 @@ function wsUrl() {
 
 const fmt = (n) => (n == null ? '-' : Number(n).toLocaleString());
 
+// 보유종목 '지금 청산 시' 세후 순손익. 브로커 평가손익(pl)·평가금액(evlt)을 기준으로
+// 매도 거래세+수수료만 차감 (cur/avg 재계산은 브로커 내부가와 불일치하므로 신뢰하지 않음).
+function netAfterCost(h, p) {
+  if (!h || h.pl == null) return null;
+  const tax = p?.TAX ?? 0.0015, fee = p?.FEE ?? 0.00015;
+  const evlt = h.evlt || h.cur * h.qty;                 // 평가금액(매도 시 총액)
+  const basis = evlt - h.pl || h.avg * h.qty;           // 매수원금 = 평가금액 − 평가손익
+  if (!evlt || !basis) return null;
+  const net = h.pl - evlt * (tax + fee);                // 평가손익 − 매도 거래세·수수료
+  return { net: Math.round(net), rate: (net / basis) * 100 };
+}
+
 export default function ViArbPanel() {
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState('');
@@ -19,8 +31,10 @@ export default function ViArbPanel() {
   const [events, setEvents] = useState([]); // VI 발동/해제/재개 로그
   const [stats, setStats] = useState({ vi: 0, opp: 0, ticks: 0 });
   const [sim, setSim] = useState({ fills: 0, wins: 0, pnl: 0 }); // Phase2 모의 체결
-  const [dir, setDir] = useState('all'); // VI 방향 필터: all | + (상방) | - (하방)
+  const [dir, setDir] = useState('+'); // VI 방향 필터 기본=상방. all | + (상방) | - (하방)
   const [bal, setBal] = useState(null);  // 모의계좌 잔고 (kt00004)
+  const [dirByCode, setDirByCode] = useState({}); // 종목코드 → VI 방향(+/-) (이벤트서 누적)
+  const [trading, setTrading] = useState(false);  // 모의주문 시작/종료 토글
   const wsRef = useRef(null);
   const retryRef = useRef(null);
 
@@ -39,6 +53,14 @@ export default function ViArbPanel() {
     return () => { stop = true; clearInterval(t); };
   }, []);
 
+  // 모의주문 제어 초기 상태 동기화 (서버가 env 기준으로 시작중일 수 있음)
+  useEffect(() => {
+    fetch('/api/vi-arb/order-control')
+      .then((r) => r.json())
+      .then((s) => { if (s && typeof s.enabled === 'boolean') setTrading(s.enabled); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     let closed = false;
 
@@ -55,6 +77,10 @@ export default function ViArbPanel() {
       ws.onmessage = (e) => {
         let m;
         try { m = JSON.parse(e.data); } catch { return; }
+        // 종목별 VI 방향 누적 (매수 보유종목에 +/- 표시용)
+        if (m.code && (m.direction === '+' || m.direction === '-')) {
+          setDirByCode((d) => (d[m.code] === m.direction ? d : { ...d, [m.code]: m.direction }));
+        }
         if (m.type === 'hello') {
           setMode(m.mode); setParams(m.params);
         } else if (m.type === 'vi') {
@@ -86,9 +112,78 @@ export default function ViArbPanel() {
     };
   }, []);
 
+  const tradeVerb = dir === '+' ? '매수' : dir === '-' ? '매도' : '매수·매도';
+  const postOrderControl = (enabled, d) => {
+    fetch('/api/vi-arb/order-control', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled, dir: d }),
+    }).catch(() => {});
+  };
+  const toggleTrading = () => {
+    const next = !trading;
+    setTrading(next);
+    postOrderControl(next, dir);
+  };
+  const [selling, setSelling] = useState(false);
+  const [sellingCode, setSellingCode] = useState(null); // 개별 매도 진행중 종목
+  const refreshBal = () => fetch('/api/vi-arb/balance').then((r) => r.json())
+    .then((b) => { if (b && b.ok) setBal(b); }).catch(() => {});
+  const sellAll = async () => {
+    if (selling) return;
+    if (!window.confirm('모의계좌 전 보유종목을 시장가로 일괄매도할까요?')) return;
+    setSelling(true);
+    try {
+      const r = await fetch('/api/vi-arb/sell-all', { method: 'POST' });
+      const d = await r.json();
+      window.alert(d.ok ? `일괄매도 접수: ${d.sold}/${d.total} 종목` : `일괄매도 실패: ${d.reason || '오류'}`);
+      refreshBal();
+    } catch {
+      window.alert('일괄매도 요청 실패');
+    } finally {
+      setSelling(false);
+    }
+  };
+  const sellOne = async (h) => {
+    if (sellingCode) return;
+    if (!window.confirm(`${h.name}(${h.code}) ${fmt(h.qty)}주를 시장가로 매도할까요?`)) return;
+    setSellingCode(h.code);
+    try {
+      const r = await fetch('/api/vi-arb/sell', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: h.code, qty: h.qty }),
+      });
+      const d = await r.json();
+      window.alert(d.ok ? `${h.name} 매도 접수 (주문 #${d.ord_no})` : `매도 실패: ${d.reason || '오류'}`);
+      refreshBal();
+    } catch {
+      window.alert('매도 요청 실패');
+    } finally {
+      setSellingCode(null);
+    }
+  };
+  // 거래중 방향 필터 변경 시 스코프 재전송
+  useEffect(() => {
+    if (trading) postOrderControl(true, dir);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dir]);
+
   const match = (x) => dir === 'all' || x.direction === dir;
   const fOpps = opps.filter(match);
   const fEvents = events.filter(match);
+
+  // 보유종목 합계 (평가손익·세후순손익·매수원금) + 전체 수익률
+  const holdings = bal?.holdings || [];
+  const holdTotals = holdings.reduce((a, h) => {
+    const nr = netAfterCost(h, params);
+    const evlt = h.evlt || h.cur * h.qty;
+    const basis = (evlt - h.pl) || (h.avg * h.qty);
+    a.pl += h.pl || 0;
+    a.net += nr ? nr.net : 0;
+    a.basis += basis || 0;
+    return a;
+  }, { pl: 0, net: 0, basis: 0 });
+  const totalPlRate = holdTotals.basis ? (holdTotals.pl / holdTotals.basis) * 100 : 0;
+  const totalNetRate = holdTotals.basis ? (holdTotals.net / holdTotals.basis) * 100 : 0;
 
   return (
     <div className="vi-arb">
@@ -117,6 +212,18 @@ export default function ViArbPanel() {
               {label}
             </button>
           ))}
+          <button
+            className={`vi-trade-toggle ${trading ? 'on' : ''}`}
+            onClick={toggleTrading}
+            title={`선택된 필터(${dir === 'all' ? '전체' : dir === '+' ? '상방' : '하방'}) 기준 모의주문 ${trading ? '종료' : '시작'}`}
+            style={{
+              marginLeft: 8, padding: '6px 14px', borderRadius: 6, fontWeight: 700, fontSize: 13,
+              border: 'none', cursor: 'pointer', color: '#fff',
+              background: trading ? '#E53935' : '#2e7d32',
+            }}
+          >
+            {trading ? `■ ${tradeVerb} 종료` : `▶ ${tradeVerb} 시작`}
+          </button>
         </div>
         <button
           className="vi-clear"
@@ -158,6 +265,93 @@ export default function ViArbPanel() {
         )}
       </div>
 
+      {bal?.holdings?.length > 0 && (
+        <div className="vi-card" style={{ marginBottom: 12 }}>
+          <div className="vi-card-title">💼 모의 매수 보유 종목 · 세후 손익 (수수료+세금 포함)</div>
+          <div className="vi-table-wrap">
+            <table className="vi-table">
+              <thead>
+                <tr>
+                  <th>종목</th><th>수량</th><th>평균단가</th><th>현재가</th>
+                  <th>평가손익</th><th>순손익 (세후)</th><th>매도</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ background: 'rgba(255,255,255,.04)', fontWeight: 700 }}>
+                  <td><b>총합</b><span className="vi-code">{holdings.length}종목</span></td>
+                  <td>—</td>
+                  <td colSpan={2}>매수원금 {fmt(holdTotals.basis)}</td>
+                  <td style={{ color: holdTotals.pl >= 0 ? '#E53935' : '#1E88E5' }}>
+                    {holdTotals.pl >= 0 ? '+' : ''}{fmt(holdTotals.pl)} ({totalPlRate >= 0 ? '+' : ''}{totalPlRate.toFixed(2)}%)
+                  </td>
+                  <td style={{ color: holdTotals.net >= 0 ? '#E53935' : '#1E88E5' }}>
+                    {holdTotals.net >= 0 ? '+' : ''}{fmt(holdTotals.net)}원 ({totalNetRate >= 0 ? '+' : ''}{totalNetRate.toFixed(2)}%)
+                  </td>
+                  <td>
+                    <button
+                      onClick={sellAll}
+                      disabled={selling}
+                      title="전 보유종목 시장가 일괄매도"
+                      style={{
+                        padding: '4px 10px', borderRadius: 5, fontWeight: 700, fontSize: 12,
+                        border: '1px solid #E53935', cursor: selling ? 'default' : 'pointer',
+                        color: '#fff', background: '#E53935', opacity: selling ? 0.5 : 1,
+                      }}
+                    >
+                      {selling ? '매도 중…' : '💸 일괄매도'}
+                    </button>
+                  </td>
+                </tr>
+                {bal.holdings.map((h) => {
+                  const nr = netAfterCost(h, params);
+                  return (
+                    <tr key={h.code}>
+                      <td>
+                        {dirByCode[h.code] && (
+                          <span className={`vi-dir ${dirByCode[h.code] === '+' ? 'up' : 'down'}`}>
+                            {dirByCode[h.code] === '+' ? '▲' : '▼'}
+                          </span>
+                        )}
+                        <b>{h.name}</b><span className="vi-code">{h.code}</span>
+                        {dirByCode[h.code] && (
+                          <span style={{
+                            marginLeft: 5, fontSize: 11, fontWeight: 700,
+                            color: dirByCode[h.code] === '+' ? '#E53935' : '#1E88E5',
+                          }}>VI{dirByCode[h.code]}</span>
+                        )}
+                      </td>
+                      <td>{fmt(h.qty)}</td>
+                      <td>{fmt(h.avg)}</td>
+                      <td>{fmt(h.cur)}</td>
+                      <td style={{ color: h.pl >= 0 ? '#E53935' : '#1E88E5' }}>
+                        {h.pl >= 0 ? '+' : ''}{fmt(h.pl)}{h.pl_rt !== '' ? ` (${h.pl_rt}%)` : ''}
+                      </td>
+                      <td style={{ color: nr && nr.net >= 0 ? '#E53935' : '#1E88E5', fontWeight: 700 }}>
+                        {nr ? `${nr.net >= 0 ? '+' : ''}${fmt(nr.net)}원 (${nr.rate >= 0 ? '+' : ''}${nr.rate.toFixed(2)}%)` : '-'}
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => sellOne(h)}
+                          disabled={sellingCode === h.code}
+                          title={`${h.name} 시장가 매도`}
+                          style={{
+                            padding: '3px 10px', borderRadius: 5, fontWeight: 700, fontSize: 12,
+                            border: '1px solid #E53935', cursor: sellingCode === h.code ? 'default' : 'pointer',
+                            color: '#E53935', background: 'transparent', opacity: sellingCode === h.code ? 0.5 : 1,
+                          }}
+                        >
+                          {sellingCode === h.code ? '…' : '매도'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="vi-grid">
         {/* 실시간 기회 피드 */}
         <div className="vi-card">
@@ -166,7 +360,7 @@ export default function ViArbPanel() {
             <table className="vi-table">
               <thead>
                 <tr>
-                  <th>종목</th><th>VI후(s)</th><th>KRX예상</th><th>NXT매도</th>
+                  <th>종목</th><th>VI후(s)</th><th>KRX가격</th><th>NXT가격</th>
                   <th>잔량</th><th>스프레드</th><th>순이익</th><th>최대수익%</th>
                 </tr>
               </thead>
@@ -178,7 +372,15 @@ export default function ViArbPanel() {
                   <tr key={o.id} className="vi-opp-row">
                     <td>
                       <span className={`vi-dir ${o.direction === '+' ? 'up' : 'down'}`}>{o.direction === '+' ? '▲' : '▼'}</span>
-                      <b>{o.name}</b><span className="vi-code">{o.code}</span>
+                      <b>{o.name}</b>
+                      {o.side && (
+                        <span style={{
+                          marginLeft: 5, fontSize: 11, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
+                          background: o.side === '매수' ? 'rgba(229,57,53,.15)' : 'rgba(30,136,229,.15)',
+                          color: o.side === '매수' ? '#E53935' : '#1E88E5',
+                        }}>NXT {o.side}</span>
+                      )}
+                      <span className="vi-code">{o.code}</span>
                     </td>
                     <td>{o.sec_since_vi}</td>
                     <td>{fmt(o.krx_expected)}</td>
