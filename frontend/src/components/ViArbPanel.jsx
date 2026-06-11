@@ -100,6 +100,17 @@ export default function ViArbPanel() {
           setEvents((p) => [{ ...m, id: `${m.code}-${m.ts}-o`, kind: 'order' }, ...p].slice(0, 40));
         } else if (m.type === 'order_fill') {
           setEvents((p) => [{ ...m, id: `${m.code}-${m.ts}-${m.status}-of`, kind: 'order_fill' }, ...p].slice(0, 40));
+          // 매도 체결 → 보유종목에서 실시간 차감/제거 (WSS 이벤트 기반, 폴링 기다리지 않음)
+          if (m.side === '매도' && (m.fill_qty || 0) > 0) {
+            setBal((b) => {
+              if (!b || !b.holdings) return b;
+              const holdings = b.holdings
+                .map((h) => (h.code === m.code ? { ...h, qty: h.qty - m.fill_qty } : h))
+                .filter((h) => h.qty > 0);
+              return { ...b, holdings };
+            });
+            setPendingSell((s) => { const n = new Set(s); n.delete(m.code); return n; });
+          }
         }
       };
     };
@@ -266,9 +277,9 @@ export default function ViArbPanel() {
             </b>
           </div>
           <div className="vi-bal-item">
-            <span>당일손익 (실현)</span>
-            <b style={{ color: bal.today_pl >= 0 ? '#E53935' : '#1E88E5' }}>
-              {bal.today_pl >= 0 ? '+' : ''}{fmt(bal.today_pl)}원 ({bal.today_pl_rt}%)
+            <span>실현손익</span>
+            <b style={{ color: (bal.realized_pl || 0) >= 0 ? '#E53935' : '#1E88E5' }}>
+              {(bal.realized_pl || 0) >= 0 ? '+' : ''}{fmt(bal.realized_pl)}원 ({(bal.realized_pl_rt || 0) >= 0 ? '+' : ''}{bal.realized_pl_rt}%)
             </b>
           </div>
           <div className="vi-bal-item"><span>보유종목</span><b>{bal.holdings?.length || 0}종목</b></div>
@@ -291,9 +302,9 @@ export default function ViArbPanel() {
         )}
       </div>
 
-      {bal?.holdings?.length > 0 && (
+      {(
         <div className="vi-card" style={{ marginBottom: 12 }}>
-          <div className="vi-card-title">💼 모의 매수 보유 종목 · 세후 손익 (수수료+세금 포함)</div>
+          <div className="vi-card-title">💼 모의 매수 보유 종목 · 세후 손익 (수수료+세금 포함) · {holdings.length}종목</div>
           {sellProgress != null && (
             <div style={{ margin: '0 0 8px' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>
@@ -338,7 +349,10 @@ export default function ViArbPanel() {
                     </button>
                   </td>
                 </tr>
-                {bal.holdings.map((h) => {
+                {holdings.length === 0 && (
+                  <tr><td colSpan={7} className="vi-empty">보유 종목 없음</td></tr>
+                )}
+                {holdings.map((h) => {
                   const nr = netAfterCost(h, params);
                   const sellBusy = sellingCode === h.code || pendingSell.has(h.code);
                   return (

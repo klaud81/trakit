@@ -20,6 +20,10 @@ from config import KIWOOM_ENVS, VI_ARB_ORDER, VI_ARB_ORDER_QTY
 logger = logging.getLogger(__name__)
 _token: tuple[str, float] | None = None  # (token, expire_epoch)
 _MOCK = KIWOOM_ENVS["mock"]               # 주문은 항상 모의 환경만 사용 (안전)
+# 모의계좌 초기 원금(시드). 손익 계산 기준 — entr(예수금)은 결제 후 실현이익을 흡수해
+# 원금 기준으로 못 쓰므로 고정값 사용. 계좌 시드가 다르면 VI_ARB_MOCK_SEED 로 override.
+import os as _os
+_MOCK_SEED = int(_os.getenv("VI_ARB_MOCK_SEED", "500000000"))
 
 
 def _is_mock() -> bool:
@@ -86,13 +90,24 @@ def get_balance() -> dict:
     buy_amount = _won(r.get("tot_pur_amt"))        # 총매입금액
     eval_pl = stock_value - buy_amount             # 평가손익(미실현)
     eval_pl_rt = round(eval_pl / buy_amount * 100, 2) if buy_amount else 0.0
+    # 모의계좌는 tdy_lspft(실현손익)을 0으로만 줌 → 직접 계산:
+    #   총손익 = 추정예탁자산 − 고정원금(시드), 실현손익 = 총손익 − 미실현평가
+    #   ※ entr(예수금)은 결제 후 실현이익을 흡수해 기준으로 못 씀 → 고정 _MOCK_SEED 사용
+    base_deposit = _won(r.get("entr"))             # 현재 예수금(표시용)
+    est_asset = _won(r.get("prsm_dpst_aset_amt"))  # 추정예탁자산(현금+평가)
+    total_pl = est_asset - _MOCK_SEED              # 전체 손익(실현+미실현) vs 원금
+    realized_pl = total_pl - eval_pl               # 실현손익 = 전체 − 미실현
+    realized_pl_rt = round(realized_pl / _MOCK_SEED * 100, 2) if _MOCK_SEED else 0.0
+    total_pl_rt = round(total_pl / _MOCK_SEED * 100, 2) if _MOCK_SEED else 0.0
     return {"ok": str(r.get("return_code", "0")) in ("0", "None"),
             "account": _MOCK.get("account", ""),
-            "deposit": _won(r.get("entr")), "d2_deposit": _won(r.get("d2_entra")),
+            "deposit": base_deposit, "d2_deposit": _won(r.get("d2_entra")),
             "stock_value": stock_value, "asset_value": _won(r.get("aset_evlt_amt")),
-            "buy_amount": buy_amount, "est_asset": _won(r.get("prsm_dpst_aset_amt")),
-            "eval_pl": eval_pl, "eval_pl_rt": eval_pl_rt,   # 미실현 평가손익
-            "today_pl": _won(r.get("tdy_lspft")), "total_pl": _won(r.get("lspft")),
+            "buy_amount": buy_amount, "est_asset": est_asset,
+            "eval_pl": eval_pl, "eval_pl_rt": eval_pl_rt,            # 미실현 평가손익
+            "realized_pl": realized_pl, "realized_pl_rt": realized_pl_rt,  # 실현손익(계산)
+            "total_pl": total_pl, "total_pl_rt": total_pl_rt,       # 전체 손익(계산)
+            "today_pl": _won(r.get("tdy_lspft")),                   # 키움 원본(모의=0)
             "today_pl_rt": r.get("tdy_lspft_rt", ""), "holdings": holdings,
             "return_msg": r.get("return_msg", "")}
 
