@@ -92,9 +92,18 @@ class ViArbHub:
     async def connect(self, ws) -> None:
         await ws.accept()
         self._clients.add(ws)
+        buy_dirs, day_stats = {}, None
+        if self.mode == "kiwoom":
+            try:
+                from services import vi_arb_kiwoom, vi_arb_store
+                buy_dirs = vi_arb_kiwoom.get_buy_dirs()   # 오늘 매수 종목 VI 방향 (배지 복원용)
+                day_stats = vi_arb_store.today_stats()    # 당일 카운터 (새로고침 복원용)
+            except Exception:
+                pass
         await ws.send_json({
             "type": "hello", "mode": self.mode, "ts": _now_iso(),
             "params": {"TAX": TAX, "FEE": FEE, "EDGE_BUFFER": EDGE_BUFFER},
+            "buy_dirs": buy_dirs, "stats": day_stats,
         })
         if self._feed_task is None or self._feed_task.done():
             self._feed_task = asyncio.create_task(self._feed_loop())

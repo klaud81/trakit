@@ -486,6 +486,80 @@ curl -s "https://api.frankfurter.dev/v1/latest?base=USD&symbols=KRW"
 
 ---
 
+## 11. VI 차익거래 (vi-arb)
+
+KRX×NXT VI 랜덤엔드 차익거래 관측·모의주문. 관측은 키움 real 환경 WS, 주문은 mock 환경(모의계좌).
+런타임 상태(주문 제어·매수 방향·지정가 등록)는 `backend/.vi_arb_state.json` 에 당일 한정 영속화되어
+서버 재시작(`--reload` 포함) 시 자동 복원된다.
+
+### `WS /api/ws/vi-arb`
+
+실시간 이벤트 스트림. 접속 시 `hello` 1회 — `mode`, `params`(TAX/FEE/EDGE_BUFFER),
+`buy_dirs`(오늘 매수 종목 code→VI방향, 배지 복원용), `stats`(당일 누적: vi/ticks/opp/buys/sim — vi_arb.db 집계).
+이후 `vi` / `spread` / `krx_resume` / `order` / `order_fill` / `sim_fill` 메시지 push.
+
+### `GET /api/vi-arb/balance`
+
+모의계좌 평가현황 (kt00004) + 부가 정보 주입. 호출 시 부수효과: 매수원금 캐시 동기화,
+지정가 매도 자동 재조정(추천가 변동 시 kt10002 정정, 종목당 10분 간격).
+
+**Response** 주요 필드
+```json
+{
+  "ok": true, "account": "81277130",
+  "deposit": 500000000, "asset_value": 492921063, "buy_amount": 7192500,
+  "eval_pl": 44970, "eval_pl_rt": 0.63,
+  "realized_pl": 72377, "realized_pl_today": 7367,
+  "holdings": [{
+    "code": "059090", "name": "미코", "qty": 3, "avg": 22733, "cur": 22400,
+    "evlt": 66007, "pl": -2193, "pl_rt": "-3.2155",
+    "sell_target": 23250, "sell_target_rt": 2.11
+  }],
+  "limit_sells": {"059090": {"ord_no": "0078553", "price": 23150, "qty": 3, "adj_ts": 1781227847.4}}
+}
+```
+- `sell_target`: 추천 매도가 = `max(세후 손익분기, 현재가 + 당일변동폭×0.5)` → 상한가 캡 → 호가단위 올림 (ka10001 당일 고저, 10분 캐시)
+- `sell_target_rt`: 평단 대비 **세후**(거래세 0.0015 + 매도수수료 0.00015 차감) 수익률 %
+- `realized_pl_today`: 당일 실현손익 (ka10074, 60초 캐시)
+
+### `GET·POST /api/vi-arb/order-control`
+
+모의주문 제어. POST body: `{"enabled": bool, "dir": "all|+|-", "budget": int}` (budget 0=무제한).
+응답: `{enabled, dir, budget, invested}`. 상태 파일 영속 — 당일에 한해 재시작 후 복원.
+
+### `POST /api/vi-arb/sell-limit`
+
+지정가 매도 등록. body `{"code": "059090", "price": 23150, "qty": 3}` → kt10001 지정가 접수
++ 등록부 기록. 이미 등록된 종목이면 거부. 응답에 `limit_sells` 전체 맵 포함.
+등록된 주문은 추천가 변동 시 10분 간격 자동 정정(kt10002), 체결 시 잔량 차감 → 전량 체결 시 해제.
+
+### `POST /api/vi-arb/sell-limit/cancel`
+
+등록된 지정가 매도 취소. body `{"code": "059090"}` → kt10003 잔량 전부 취소(cncl_qty=0) + 등록 해제.
+원주문 소멸(이미 체결 등) 오류여도 등록은 해제.
+
+### `POST /api/vi-arb/sell-limit/bulk`
+
+일괄 지정가 매도. body `{"min_rt": 7}` — 세후 수익률(`sell_target_rt`) ≥ min_rt 인 **미등록** 보유종목
+전부를 추천 매도가로 등록. 주문 간 0.3s 스로틀 + 429 재시도. 응답: `{registered, total, results[], limit_sells}`.
+
+### `POST /api/vi-arb/sell` · `POST /api/vi-arb/sell-all`
+
+개별/전체 시장가 매도. sell-all 은 0.3s 스로틀 + 429 재시도.
+
+### `GET /api/vi-arb/stats`
+
+vi_arb.db 적재 현황 (행 수, 기회 수).
+
+### 디스코드 알림 (엔드포인트 아님)
+
+- 체결 알림: `.env` `VI_ARB_DISCORD_WEBHOOK` 설정 시 매수/매도 체결을 웹훅 전송.
+  큐잉 — 0.5s grace 동안 최대 10건 배치, 전송 간 0.5s, 429 Retry-After 재시도.
+  urllib 기본 User-Agent 는 Cloudflare 403 → 명시 UA 사용.
+- 정시 요약: 매 정시(:00), 매수 가동 중일 때만 계좌·당일 통계 요약 전송 (app lifespan 태스크).
+
+---
+
 ## 에러 응답
 
 모든 엔드포인트는 서버 에러 시 동일한 형식으로 응답합니다.

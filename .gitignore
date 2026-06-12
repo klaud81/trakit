@@ -12,6 +12,7 @@ data/.kis_token.json
 .kiwoom_token.json
 backend/.kiwoom_token.json
 data/.kiwoom_token.json
+backend/.vi_arb_state.json
 .gsa.json
 backend/.gsa.json
 *service-account*.json

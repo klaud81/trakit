@@ -127,6 +127,8 @@ VI_ARB_OBS_ENV = os.getenv("VI_ARB_OBS_ENV", "real").lower()
 VI_ARB_UNIVERSE = [c.strip() for c in os.getenv("VI_ARB_UNIVERSE", "").split(",") if c.strip()]
 # 모의 체결 시도(rq-01 Phase): true 시 VI 종목에 모의 주문. ⚠️ KIWOOM_ENVS["mock"]만 사용.
 VI_ARB_ORDER = os.getenv("VI_ARB_ORDER", "false").lower() == "true"
+# VI 매수 시총 하한 (억원). 이 미만 소형주는 VI 발동해도 매수 스킵 (유동성 보호). 0=필터 없음
+VI_ARB_MIN_MCAP = int(os.getenv("VI_ARB_MIN_MCAP", "3300"))
 VI_ARB_ORDER_QTY = int(os.getenv("VI_ARB_ORDER_QTY", "1"))          # 모의 주문 수량
 
 # KR 뉴스 정리(interpreted) 레이어용 — 뉴스 소스(네이버) + LLM 가공(Gemini)
@@ -148,6 +150,8 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 DISCORD_APP_ID = os.getenv("DISCORD_APP_ID", "")
 DISCORD_PUBLIC_KEY = os.getenv("DISCORD_PUBLIC_KEY", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+# VI 차익거래 체결 알림 전용 웹훅 (.env, 미설정 시 알림 안 보냄)
+VI_ARB_DISCORD_WEBHOOK = os.getenv("VI_ARB_DISCORD_WEBHOOK", "")
 
 # API 설정
 API_HOST = os.getenv("TRAKIT_HOST", "0.0.0.0")

@@ -173,6 +173,71 @@ def place_order(stk_cd: str, side: str = "buy", qty: int | None = None,
         return {"ok": False, "reason": str(e)}
 
 
+_today_pl_cache: tuple[float, int] | None = None   # (ts, 당일실현손익)
+
+
+def today_realized_pl() -> int | None:
+    """당일 실현손익 (ka10074 일자별실현손익, 오늘 단일 날짜, 60초 캐시). 실패 시 None."""
+    global _today_pl_cache
+    now = time.time()
+    if _today_pl_cache and now - _today_pl_cache[0] < 60:
+        return _today_pl_cache[1]
+    if not _is_mock():
+        return None
+    token = _order_token()
+    if not token:
+        return None
+    from datetime import datetime, timedelta, timezone
+    day = datetime.now(timezone(timedelta(hours=9))).strftime("%Y%m%d")
+    try:
+        r = _post("/api/dostk/acnt", {"strt_dt": day, "end_dt": day},
+                  {"authorization": f"Bearer {token}", "api-id": "ka10074"})
+        v = _won(r.get("rlzt_pl"))
+        _today_pl_cache = (now, v)
+        return v
+    except Exception as e:
+        logger.warning(f"당일실현손익 조회 실패: {e}")
+        return _today_pl_cache[1] if _today_pl_cache else None
+
+
+def modify_order(ord_no: str, stk_cd: str, price: int, qty: int = 0, exchange: str = "KRX") -> dict:
+    """주식 정정주문 (kt10002). qty=0 → 잔량 전부 정정. 반환 ord_no = 새 주문번호."""
+    if not _is_mock():
+        return {"ok": False, "reason": "실서버 도메인 — 주문 차단"}
+    token = _order_token()
+    if not token:
+        return {"ok": False, "reason": "토큰 없음"}
+    body = {"dmst_stex_tp": exchange, "orig_ord_no": str(ord_no), "stk_cd": stk_cd,
+            "mdfy_qty": str(qty), "mdfy_uv": str(price), "mdfy_cond_uv": ""}
+    try:
+        r = _post("/api/dostk/ordr", body,
+                  {"authorization": f"Bearer {token}", "api-id": "kt10002"})
+        ok = str(r.get("return_code")) == "0"
+        return {"ok": ok, "ord_no": r.get("ord_no"), "reason": r.get("return_msg", "")}
+    except Exception as e:
+        logger.warning(f"정정주문 실패 ({stk_cd} #{ord_no} → {price}): {e}")
+        return {"ok": False, "reason": str(e)}
+
+
+def cancel_order(ord_no: str, stk_cd: str, qty: int = 0, exchange: str = "KRX") -> dict:
+    """주식 취소주문 (kt10003). qty=0 → 잔량 전부 취소."""
+    if not _is_mock():
+        return {"ok": False, "reason": "실서버 도메인 — 주문 차단"}
+    token = _order_token()
+    if not token:
+        return {"ok": False, "reason": "토큰 없음"}
+    body = {"dmst_stex_tp": exchange, "orig_ord_no": str(ord_no),
+            "stk_cd": stk_cd, "cncl_qty": str(qty)}
+    try:
+        r = _post("/api/dostk/ordr", body,
+                  {"authorization": f"Bearer {token}", "api-id": "kt10003"})
+        ok = str(r.get("return_code")) == "0"
+        return {"ok": ok, "ord_no": r.get("ord_no"), "reason": r.get("return_msg", "")}
+    except Exception as e:
+        logger.warning(f"취소주문 실패 ({stk_cd} #{ord_no}): {e}")
+        return {"ok": False, "reason": str(e)}
+
+
 _SELL_THROTTLE_SEC = 0.3   # 주문 간 간격 (Kiwoom 429 레이트리밋 회피, ~3건/초)
 
 

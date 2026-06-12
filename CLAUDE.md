@@ -71,10 +71,22 @@ cd backend && python -m pytest test/ -v
 - TradeTable: `cycleTrade` (= portfolio) 의 `executed_prices` / `trade_shares` / `trade_amount` 로 이번 회차 체결 표시. 매도면 가격 ≤ max(체결가) 행, 매수면 가격 ≥ min(체결가) 행을 취소선(line-through, opacity 0.55) 처리. 카드 상단에 회차 진행 배너(횟수·체결 금액) 추가
 - Discord `/signal` 도 동일 로직: 체결가에 해당하는 tier 는 다음 매수/매도 후보에서 제외하고 "이번 회차 매도 체결: $X" 라인으로 별도 표시
 - Discord 명령어: `/help`, `/price`, `/quote symbol:`, `/signal [offset]`, `/portfolio [offset]`, `/goal [offset]`, `/trade` (매수/매도 tier 테이블, 체결가 ✓), `/watch`, `/rate`, `/refresh`. 모두 서버 시작 시 자동 등록 (`register_slash_commands`), 강제 재등록은 `POST /api/discord/register`
-- 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
+- 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news` / `#vi-arb`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
 - 뉴스 라우트(`#news`)에서는 Header / 후원하기 카드 숨김, 방문자 통계는 모든 라우트에 표시
 - NewsPanel 필터: SOURCE_TABS (전체/SAVE/로이터/파이낸셜뉴스) 는 서버측 `label_group` 파라미터로 refetch. CATEGORIES_BY_TAB 은 클라이언트측 `tag_names` 필터 (전체 tab의 '분석' pill은 `분석` OR `시황/분석` 매칭). SAVE_CATEGORIES 는 서버측 `label_name` 파라미터로 refetch
 - NewsDetailModal: 뉴스 행 클릭 → `/api/news/detail/{id}` 조회 → 모달 표시. 닫기: ✕ / 배경 클릭 / Escape. 본문은 `content[]` 의 text 블록을 `\n` 기준으로 단락 분할
+
+### VI 차익거래 (vi-arb)
+- 핵심 파일: `backend/services/vi_arb_kiwoom.py` (관측·주문·상태), `vi_arb.py` (WS 허브), `vi_arb_store.py` (SQLite 적재), `kiwoom_order.py` (모의 주문 REST), FE `frontend/src/components/ViArbPanel.jsx`. 요구사항: `rq-01-001.md`
+- 관측 WS = real 환경 (VI `1h` + KRX/NXT 동적구독), 주문 = mock 환경. Kiwoom REST: kt10000 매수 / kt10001 매도 / kt10002 정정 / kt10003 취소 / ka10074 일자별실현손익 / ka10075 미체결 / ka10001 기본정보(당일 고저·상한가)
+- **상태 영속화**: `backend/.vi_arb_state.json` (gitignore) — **당일 한정**으로 주문 제어(enabled/dir/budget), 오늘 매수 종목 VI 방향(`buy_dirs`), 지정가 매도 등록(`limit_sells`) 저장. `--reload` 워커 재시작 시 모듈 임포트 시점 자동 복원 (전일 상태는 복원 안 함 — 다음날 매수 자동 재개 방지). **주의: 백엔드 파일 저장 = reload = 영속화 없던 시절엔 매수가 조용히 꺼졌음**
+- **당일 통계 복원**: `vi_arb_store.today_stats()` 가 vi_arb.db 에서 VI 발동·틱·기회·매수횟수·모의손익(`sim_fills` 테이블) 집계 → WS `hello` 에 `stats`·`buy_dirs` 포함 → FE 새로고침해도 카운터·보유종목 VI 배지 유지
+- **추천 매도가**: `add_sell_targets(holdings)` — ka10001 당일 고저 10분 캐시(미스만 4-동시 병렬) 기반 `max(세후 손익분기, 현재가 + 당일변동폭×0.5)` → 상한가 캡 → KRX 호가단위 올림(`_tick_ceil`). `sell_target_rt` = **평단 대비 세후**(매도 거래세 0.0015 + 수수료 0.00015 차감, FE `netAfterCost` 와 동일 컨벤션). `/api/vi-arb/balance` 응답 holdings 에 주입
+- **지정가 매도**: 등록(`/sell-limit`)·취소(`/sell-limit/cancel`, cncl_qty=0 잔량 전부)·일괄(`/sell-limit/bulk`, `min_rt` 세후수익률 필터 + 0.3s 스로틀). 등록부는 상태 파일 영속 + `/balance` `limit_sells` 로 FE 버튼 동기화. 체결(00 스트림) 시 잔량 차감 → 전량 체결 시 해제. **자동 재조정**: `/balance` 폴링마다 추천가 ≠ 등록가면 kt10002 정정 (종목당 10분 간격, `asyncio.Lock` 직렬화 — 동시 호출 이중 정정 시 소멸된 원주문번호로 등록 풀리는 레이스 방지)
+- **디스코드 체결 알림**: `.env` `VI_ARB_DISCORD_WEBHOOK` (config.py 로드, 미설정 시 무시). `asyncio.Queue` 큐잉 — 첫 건 후 0.5s grace 동안 최대 10건을 한 메시지로 배치, 전송 간 0.5s, 429 는 Retry-After 대기 후 1회 재시도. **urllib 기본 UA 는 Discord Cloudflare 가 403 차단 → 명시 User-Agent 필수**
+- **정시 요약**: `hourly_summary_loop()` (app.py lifespan 에서 기동) — 매 정시(:00), 매수 가동 중(`_order_enabled`)일 때만 계좌·통계 요약을 디스코드 전송
+- **당일 실현손익**: `kiwoom_order.today_realized_pl()` (ka10074, 60초 캐시) → `/balance` `realized_pl_today`. 모의계좌 `tdy_lspft` 는 항상 0 이므로 사용 금지
+- FE: 주문 제어(시작/방향/예산)는 15초 폴링으로 서버와 양방향 동기화 (필터 클릭 즉시 POST, 예산 입력 중엔 폴링이 덮어쓰지 않음). 보유종목 ▲/▼VI 배지는 매수 시점 방향(`buyDirs`) 우선 — 이후 반대 VI 관측돼도 안 뒤집힘. 체결 토스트(중앙 상단, 5.5s 표시 + 1.5s 페이드아웃): VI 매수 전부 + 등록된 지정가 매도 체결. 폭죽 = 캔버스 파티클 8발 시간차 ~7.5s (저알파 페이드 잔상). 추천가 > 현재가면 엣지 박스 강조. 일괄매도 confirm 에 지정가 등록 종목 경고 포함
 
 ### 디자인 (Pencil)
 - .pen 파일은 Pencil MCP 도구로만 읽기/수정 (Read/Grep 사용 금지)
@@ -102,6 +114,15 @@ cd backend && python -m pytest test/ -v
 | POST | `/api/discord/register` | Discord 슬래시 명령어 강제 재등록 (수동 트리거) |
 | GET | `/api/news` | 뉴스 목록 프록시 (saveticker, 60초 캐시). 파라미터: `page`, `page_size`, `label_group`, `label_name`, `sort` |
 | GET | `/api/news/detail/{id}` | 뉴스 상세 프록시 (saveticker, 5분 캐시) |
+| WS | `/api/ws/vi-arb` | VI 관측 실시간 스트림 (hello 에 stats/buy_dirs 포함) |
+| GET | `/api/vi-arb/balance` | 모의계좌 잔고 + holdings(sell_target 주입) + limit_sells + realized_pl_today. 호출 시 지정가 자동 재조정 |
+| GET/POST | `/api/vi-arb/order-control` | 모의주문 제어 (enabled/dir/budget/invested) — 상태 파일 영속 |
+| POST | `/api/vi-arb/sell-limit` | 지정가 매도 등록 {code, price, qty} |
+| POST | `/api/vi-arb/sell-limit/cancel` | 지정가 매도 취소 {code} (잔량 전부) |
+| POST | `/api/vi-arb/sell-limit/bulk` | 일괄 지정가 매도 {min_rt} — 세후수익률 필터 |
+| POST | `/api/vi-arb/sell` | 개별 시장가 매도 |
+| POST | `/api/vi-arb/sell-all` | 전 보유종목 시장가 일괄매도 (스로틀) |
+| GET | `/api/vi-arb/stats` | vi_arb.db 적재 현황 |
 
 상세: [docs/api-spec.md](docs/api-spec.md)
 

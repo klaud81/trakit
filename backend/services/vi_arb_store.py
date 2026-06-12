@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import threading
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,10 @@ CREATE TABLE IF NOT EXISTS order_fills(
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, source TEXT, code TEXT, name TEXT,
   status TEXT, ord_no TEXT, side TEXT, ord_qty INTEGER, fill_price INTEGER,
   fill_qty INTEGER, exchange TEXT);
+CREATE TABLE IF NOT EXISTS sim_fills(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, source TEXT, code TEXT, name TEXT,
+  direction TEXT, entry_buy INTEGER, qty INTEGER, krx_expected INTEGER, krx_confirm INTEGER,
+  gross INTEGER, cost INTEGER, net INTEGER, ret_pct REAL, win INTEGER);
 CREATE INDEX IF NOT EXISTS idx_sp_code_ts ON spreads(code, ts);
 CREATE INDEX IF NOT EXISTS idx_sp_opp ON spreads(opportunity);
 CREATE INDEX IF NOT EXISTS idx_vi_code_ts ON vi_events(code, ts);
@@ -95,11 +100,35 @@ def record(msg: dict, source: str = "kiwoom") -> None:
                           " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                           (g("ts"), source, g("code"), g("name"), g("status"), g("ord_no"),
                            g("side"), g("ord_qty"), g("fill_price"), g("fill_qty"), g("exchange")))
+            elif t == "sim_fill":
+                c.execute("INSERT INTO sim_fills(ts,source,code,name,direction,entry_buy,qty,krx_expected,"
+                          "krx_confirm,gross,cost,net,ret_pct,win) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                          (g("ts"), source, g("code"), g("name"), g("direction"), g("entry_buy"),
+                           g("qty"), g("krx_expected"), g("krx_confirm"), g("gross"), g("cost"),
+                           g("net"), g("ret_pct"), g("win")))
             else:
                 return
             c.commit()
     except Exception as e:
         logger.warning(f"vi_arb_store 적재 실패({t}): {e}")
+
+
+def today_stats(source: str = "kiwoom") -> dict:
+    """당일(KST) 관측 통계 — FE 새로고침 시 카운터 복원용 (WS hello 에 포함)."""
+    like = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d") + "%"
+    with _lock:
+        c = _conn_get()
+        def n(q):
+            return c.execute(q, (source, like)).fetchone()[0]
+        sim = c.execute("SELECT COUNT(*), COALESCE(SUM(win),0), COALESCE(SUM(net),0)"
+                        " FROM sim_fills WHERE source=? AND ts LIKE ?", (source, like)).fetchone()
+        return {
+            "vi": n("SELECT COUNT(*) FROM vi_events WHERE source=? AND ts LIKE ? AND kind='발동'"),
+            "ticks": n("SELECT COUNT(*) FROM spreads WHERE source=? AND ts LIKE ?"),
+            "opp": n("SELECT COUNT(*) FROM spreads WHERE source=? AND ts LIKE ? AND opportunity=1"),
+            "buys": n("SELECT COUNT(*) FROM orders WHERE source=? AND ts LIKE ? AND ok=1 AND direction!='-'"),
+            "sim": {"fills": sim[0], "wins": sim[1], "pnl": sim[2]},
+        }
 
 
 def stats() -> dict:

@@ -387,7 +387,97 @@ async def vi_arb_balance():
     if bal.get("ok"):
         from services import vi_arb_kiwoom
         vi_arb_kiwoom.set_invested(bal.get("buy_amount", 0))
+        # 종목별 추천 매도가 인라인 주입 (당일 변동폭 기반, 10분 캐시)
+        try:
+            await vi_arb_kiwoom.add_sell_targets(bal.get("holdings") or [])
+            # 등록된 지정가 매도를 갱신된 추천가로 자동 정정 (10분 간격)
+            await vi_arb_kiwoom.readjust_limit_sells(bal.get("holdings") or [])
+        except Exception:
+            pass
+        bal["limit_sells"] = vi_arb_kiwoom.get_limit_sells()   # 등록된 지정가 매도 (버튼 상태)
+        # 당일 실현손익 (ka10074, 60초 캐시) — FE '실현손익 (오늘)' 표시용
+        from services.kiwoom_order import today_realized_pl
+        bal["realized_pl_today"] = today_realized_pl()
     return bal
+
+
+@router.post("/vi-arb/sell-limit")
+async def vi_arb_sell_limit(payload: dict):
+    """지정가 매도 등록 — {code, price, qty}. 추천 매도가 버튼이 호출."""
+    from services.kiwoom_order import place_order
+    from services import vi_arb_kiwoom
+    code = (payload.get("code") or "").strip()
+    try:
+        price, qty = int(payload.get("price") or 0), int(payload.get("qty") or 0)
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "price/qty 숫자 아님"}
+    if not (code and price > 0 and qty > 0):
+        return {"ok": False, "reason": "code/price/qty 필요"}
+    if code in vi_arb_kiwoom.get_limit_sells():
+        return {"ok": False, "reason": "이미 등록된 지정가 매도 있음",
+                "limit_sells": vi_arb_kiwoom.get_limit_sells()}
+    r = place_order(code, "sell", qty=qty, price=price, exchange="KRX")
+    if r.get("ok"):
+        vi_arb_kiwoom.register_limit_sell(code, r.get("ord_no") or "", price, qty)
+    return {**r, "limit_sells": vi_arb_kiwoom.get_limit_sells()}
+
+
+@router.post("/vi-arb/sell-limit/bulk")
+async def vi_arb_sell_limit_bulk(payload: dict):
+    """일괄 지정가 매도 — 세후 수익률(sell_target_rt) ≥ min_rt 인 미등록 보유종목을
+    추천 매도가로 전량 등록. Kiwoom 429 회피 위해 주문 간 0.3s 스로틀."""
+    import asyncio
+    from services.kiwoom_order import get_balance, place_order
+    from services import vi_arb_kiwoom
+    try:
+        min_rt = float(payload.get("min_rt"))
+    except (TypeError, ValueError):
+        return {"ok": False, "reason": "min_rt 숫자 필요"}
+    bal = get_balance()
+    if not bal.get("ok"):
+        return {"ok": False, "reason": bal.get("reason", "잔고조회 실패")}
+    holds = [h for h in (bal.get("holdings") or []) if (h.get("qty") or 0) > 0]
+    await vi_arb_kiwoom.add_sell_targets(holds)
+    already = vi_arb_kiwoom.get_limit_sells()
+    targets = [h for h in holds
+               if h.get("sell_target") and h.get("sell_target_rt") is not None
+               and h["sell_target_rt"] >= min_rt and h["code"] not in already]
+    loop = asyncio.get_event_loop()
+    results = []
+    for i, h in enumerate(targets):
+        if i:
+            await asyncio.sleep(0.3)
+        r = await loop.run_in_executor(None, lambda hh=h: place_order(
+            hh["code"], "sell", qty=hh["qty"], price=hh["sell_target"], exchange="KRX"))
+        if not r.get("ok") and "429" in str(r.get("reason", "")):
+            await asyncio.sleep(1.0)   # 레이트리밋 → 1회 재시도
+            r = await loop.run_in_executor(None, lambda hh=h: place_order(
+                hh["code"], "sell", qty=hh["qty"], price=hh["sell_target"], exchange="KRX"))
+        if r.get("ok"):
+            vi_arb_kiwoom.register_limit_sell(h["code"], r.get("ord_no") or "", h["sell_target"], h["qty"])
+        results.append({"code": h["code"], "name": h.get("name"), "qty": h["qty"],
+                        "price": h["sell_target"], "rt": h["sell_target_rt"],
+                        "ok": r.get("ok"), "reason": r.get("reason", "")})
+    done = sum(1 for x in results if x["ok"])
+    return {"ok": True, "registered": done, "total": len(results),
+            "results": results, "limit_sells": vi_arb_kiwoom.get_limit_sells()}
+
+
+@router.post("/vi-arb/sell-limit/cancel")
+async def vi_arb_sell_limit_cancel(payload: dict):
+    """등록된 지정가 매도 취소 — {code}. 잔량 전부 취소(kt10003)."""
+    from services.kiwoom_order import cancel_order
+    from services import vi_arb_kiwoom
+    code = (payload.get("code") or "").strip()
+    e = vi_arb_kiwoom.get_limit_sells().get(code)
+    if not e:
+        return {"ok": False, "reason": "등록된 지정가 매도 없음",
+                "limit_sells": vi_arb_kiwoom.get_limit_sells()}
+    r = cancel_order(e["ord_no"], code, qty=0)
+    # 이미 전량 체결/취소된 주문(원주문 없음 류 오류)도 등록 해제해 버튼이 풀리게 함
+    if r.get("ok") or "원주문" in str(r.get("reason", "")):
+        vi_arb_kiwoom.pop_limit_sell(code)
+    return {**r, "limit_sells": vi_arb_kiwoom.get_limit_sells()}
 
 
 @router.get("/vi-arb/order-control")
@@ -399,10 +489,11 @@ async def vi_arb_order_control_get():
 
 @router.post("/vi-arb/order-control")
 async def vi_arb_order_control_set(payload: dict = Body(default={})):
-    """모의주문 시작/종료 + 방향 스코프 + 목표 매수원금 (FE). body: {enabled, dir, budget}."""
+    """모의주문 시작/종료 + 방향 + 목표 매수원금 + 시총 하한. body: {enabled, dir, budget, min_mcap}."""
     from services import vi_arb_kiwoom
     state = vi_arb_kiwoom.set_order_control(
-        payload.get("enabled", False), payload.get("dir", "all"), payload.get("budget"))
+        payload.get("enabled", False), payload.get("dir", "all"),
+        payload.get("budget"), payload.get("min_mcap"))
     return {"ok": True, **state}
 
 
