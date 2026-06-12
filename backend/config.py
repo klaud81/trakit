@@ -129,6 +129,8 @@ VI_ARB_UNIVERSE = [c.strip() for c in os.getenv("VI_ARB_UNIVERSE", "").split(","
 VI_ARB_ORDER = os.getenv("VI_ARB_ORDER", "false").lower() == "true"
 # VI 매수 시총 하한 (억원). 이 미만 소형주는 VI 발동해도 매수 스킵 (유동성 보호). 0=필터 없음
 VI_ARB_MIN_MCAP = int(os.getenv("VI_ARB_MIN_MCAP", "3300"))
+# 정시 브리핑(KST 08~16시) 디스코드 발송 on/off
+VI_ARB_HOURLY_BRIEFING = os.getenv("VI_ARB_HOURLY_BRIEFING", "true").lower() == "true"
 VI_ARB_ORDER_QTY = int(os.getenv("VI_ARB_ORDER_QTY", "1"))          # 모의 주문 수량
 
 # KR 뉴스 정리(interpreted) 레이어용 — 뉴스 소스(네이버) + LLM 가공(Gemini)

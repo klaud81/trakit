@@ -556,7 +556,8 @@ vi_arb.db 적재 현황 (행 수, 기회 수).
 - 체결 알림: `.env` `VI_ARB_DISCORD_WEBHOOK` 설정 시 매수/매도 체결을 웹훅 전송.
   큐잉 — 0.5s grace 동안 최대 10건 배치, 전송 간 0.5s, 429 Retry-After 재시도.
   urllib 기본 User-Agent 는 Cloudflare 403 → 명시 UA 사용.
-- 정시 요약: 매 정시(:00), 매수 가동 중일 때만 계좌·당일 통계 요약 전송 (app lifespan 태스크).
+- 정시 브리핑: 월~금 KST 08~16시 매 정시(:00)에 계좌·당일 통계 요약 전송 (매수 on/off 무관,
+  app lifespan 태스크). `.env` `VI_ARB_HOURLY_BRIEFING=false` 로 비활성 (기본 true).
 
 ---
 

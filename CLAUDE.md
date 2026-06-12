@@ -84,7 +84,8 @@ cd backend && python -m pytest test/ -v
 - **추천 매도가**: `add_sell_targets(holdings)` — ka10001 당일 고저 10분 캐시(미스만 4-동시 병렬) 기반 `max(세후 손익분기, 현재가 + 당일변동폭×0.5)` → 상한가 캡 → KRX 호가단위 올림(`_tick_ceil`). `sell_target_rt` = **평단 대비 세후**(매도 거래세 0.0015 + 수수료 0.00015 차감, FE `netAfterCost` 와 동일 컨벤션). `/api/vi-arb/balance` 응답 holdings 에 주입
 - **지정가 매도**: 등록(`/sell-limit`)·취소(`/sell-limit/cancel`, cncl_qty=0 잔량 전부)·일괄(`/sell-limit/bulk`, `min_rt` 세후수익률 필터 + 0.3s 스로틀). 등록부는 상태 파일 영속 + `/balance` `limit_sells` 로 FE 버튼 동기화. 체결(00 스트림) 시 잔량 차감 → 전량 체결 시 해제. **자동 재조정**: `/balance` 폴링마다 추천가 ≠ 등록가면 kt10002 정정 (종목당 10분 간격, `asyncio.Lock` 직렬화 — 동시 호출 이중 정정 시 소멸된 원주문번호로 등록 풀리는 레이스 방지)
 - **디스코드 체결 알림**: `.env` `VI_ARB_DISCORD_WEBHOOK` (config.py 로드, 미설정 시 무시). `asyncio.Queue` 큐잉 — 첫 건 후 0.5s grace 동안 최대 10건을 한 메시지로 배치, 전송 간 0.5s, 429 는 Retry-After 대기 후 1회 재시도. **urllib 기본 UA 는 Discord Cloudflare 가 403 차단 → 명시 User-Agent 필수**
-- **정시 요약**: `hourly_summary_loop()` (app.py lifespan 에서 기동) — 매 정시(:00), 매수 가동 중(`_order_enabled`)일 때만 계좌·통계 요약을 디스코드 전송
+- **정시 브리핑**: `hourly_summary_loop()` (app.py lifespan 에서 기동) — **월~금 KST 08~16시** 매 정시(:00)에 계좌·통계 요약을 디스코드 전송 (매수 on/off 무관, 공휴일 미구분). `.env` `VI_ARB_HOURLY_BRIEFING=false` 로 끔 (기본 true)
+- **추천 매도가 함수**: `calc_fallback_target`(개장 전 폴백 — 이월 보유 3단계: ≥+0.5% → max(손익분기,현재가) / +0.5%~-7% → 세후 +0.5% 고정 / ≤-7% → 손실률 1/3 손절가) · `calc_intraday_target`(장중 변동폭) · `calc_net_rate` — 순수 함수, `test/test_vi_arb_targets.py` 13개 단위 테스트
 - **당일 실현손익**: `kiwoom_order.today_realized_pl()` (ka10074, 60초 캐시) → `/balance` `realized_pl_today`. 모의계좌 `tdy_lspft` 는 항상 0 이므로 사용 금지
 - FE: 주문 제어(시작/방향/예산)는 15초 폴링으로 서버와 양방향 동기화 (필터 클릭 즉시 POST, 예산 입력 중엔 폴링이 덮어쓰지 않음). 보유종목 ▲/▼VI 배지는 매수 시점 방향(`buyDirs`) 우선 — 이후 반대 VI 관측돼도 안 뒤집힘. 체결 토스트(중앙 상단, 5.5s 표시 + 1.5s 페이드아웃): VI 매수 전부 + 등록된 지정가 매도 체결. 폭죽 = 캔버스 파티클 8발 시간차 ~7.5s (저알파 페이드 잔상). 추천가 > 현재가면 엣지 박스 강조. 일괄매도 confirm 에 지정가 등록 종목 경고 포함
 
@@ -138,7 +139,8 @@ cd backend && python -m pytest test/ -v
 ## 테스트
 
 ```bash
-cd backend && python -m pytest test/ -v  # 19개 API 테스트
+cd backend && python -m pytest test/ -v  # API 19개 + VI 추천가 단위 13개
 ```
 
-테스트 파일: `backend/test/test_api.py` — FastAPI TestClient 기반
+테스트 파일: `backend/test/test_api.py` (FastAPI TestClient 기반),
+`backend/test/test_vi_arb_targets.py` (추천 매도가 순수 함수 단위 테스트 — 네트워크 무관)

@@ -291,11 +291,21 @@ def _build_hourly_summary() -> str:
 
 
 async def hourly_summary_loop() -> None:
-    """VI 매수 가동 중(_order_enabled)이면 매 정시에 디스코드 요약 전송 (app lifespan 에서 기동)."""
+    """KST 08~16시 매 정시에 디스코드 계좌·관측 요약 전송 — 매수 on/off 무관 (app lifespan 기동).
+
+    .env VI_ARB_HOURLY_BRIEFING=false 로 발송 끔 (기본 true).
+    """
+    from config import VI_ARB_HOURLY_BRIEFING
+    if not VI_ARB_HOURLY_BRIEFING:
+        logger.info("⚡ 정시 브리핑 비활성 (VI_ARB_HOURLY_BRIEFING=false)")
+        return
+    from datetime import datetime
+    from services.vi_arb import KST
     loop = asyncio.get_event_loop()
     while True:
         await asyncio.sleep(3600 - time.time() % 3600)   # 다음 정시(:00)까지 대기
-        if not _order_enabled:
+        now = datetime.now(KST)
+        if now.weekday() >= 5 or not 8 <= now.hour <= 16:   # 월~금 08:00~16:00 정시만
             continue
         try:
             _enqueue_discord(await loop.run_in_executor(None, _build_hourly_summary))
