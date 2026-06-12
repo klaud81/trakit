@@ -654,6 +654,10 @@ export default function ViArbPanel() {
                               }}>
                                 ({(h.sell_target_rt ?? 0) > 0 ? '+' : ''}{h.sell_target_rt}%)
                               </span>
+                              {h.sell_target_kind === 'stoploss' && (
+                                <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, color: '#1E88E5' }}
+                                  title="이월 보유 손실 -7% 이하 — 손실률 1/3 지점 반등 시 탈출 권고">손절</span>
+                              )}
                             </span>
                             {(() => {
                               const ls = bal?.limit_sells?.[h.code];

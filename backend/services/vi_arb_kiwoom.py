@@ -570,6 +570,40 @@ def _tick_ceil(p: float) -> int:
     return math.ceil(p / 1000) * 1000
 
 
+def calc_net_rate(target: float, avg: float) -> float:
+    """평단 대비 세후 수익률 % — 매도 거래세+수수료 차감 (FE netAfterCost 와 동일 컨벤션)."""
+    return round((target * (1 - TAX - FEE) - avg) / avg * 100, 2)
+
+
+def calc_fallback_target(avg: float, cur: float, held_over: bool) -> tuple[int, str | None]:
+    """개장 전 폴백 추천가 (당일 고저 미형성) — 순수 함수, 단위 테스트 대상.
+
+    이월 보유(held_over) 3단계 규칙:
+      수익률 ≥ +0.5%  → max(세후 손익분기, 현재가=전일종가)
+      +0.5% ~ -7%    → 세후 +0.5% 수준 고정
+      ≤ -7%          → 손실률의 1/3 지점 손절가 (반등 시 탈출)
+    당일 매수분(held_over=False)은 max(손익분기, 현재가).
+    반환: (호가단위 올림 가격, kind) — kind 는 "stoploss" 또는 None.
+    """
+    pl_rt = (cur - avg) / avg * 100
+    if held_over and pl_rt <= -7:
+        return _tick_ceil(avg * (1 + pl_rt / 3 / 100)), "stoploss"
+    if held_over and pl_rt < 0.5:
+        return _tick_ceil(avg * 1.005 / (1 - TAX - FEE)), None
+    return _tick_ceil(max(avg * (1 + 2 * FEE + TAX), cur)), None
+
+
+def calc_intraday_target(avg: float, cur: float, high: float, low: float, upl: float = 0) -> int:
+    """장중 변동폭 추천가 — 순수 함수, 단위 테스트 대상.
+
+    max(세후 손익분기, 현재가 + 당일변동폭×0.5) → 상한가(upl) 캡 → 호가단위 올림.
+    """
+    target = max(avg * (1 + 2 * FEE + TAX), cur + 0.5 * max(high - low, 0))
+    if upl:
+        target = min(target, upl)
+    return _tick_ceil(target)
+
+
 def _day_range(code: str) -> dict | None:
     """당일 고가/저가/상한가 (ka10001, 10분 캐시). 조회 실패 시 stale 캐시 유지."""
     now = time.time()
@@ -598,22 +632,21 @@ async def add_sell_targets(holdings: list[dict]) -> None:
         code, avg, cur = h.get("code"), h.get("avg") or 0, h.get("cur") or 0
         if not (code and avg and cur):
             return
+
+        def _apply(t: int, kind: str = None) -> None:
+            h["sell_target"] = t
+            h["sell_target_rt"] = calc_net_rate(t, avg)
+            if kind:
+                h["sell_target_kind"] = kind
+
         async with sem:
             d = await loop.run_in_executor(None, lambda: _day_range(code))
-        breakeven = avg * (1 + 2 * FEE + TAX)                            # 왕복 수수료 + 매도 거래세
         if not d:
-            # 개장 전 등 당일 고저 미형성 → 세후 손익분기 기반 폴백 (변동폭 항 없이)
-            t = _tick_ceil(breakeven)
-            h["sell_target"] = t
-            h["sell_target_rt"] = round((t * (1 - TAX - FEE) - avg) / avg * 100, 2)
+            # 개장 전 폴백 — 이월 보유 3단계 규칙. 장 시작 후 고저 형성 시 변동폭 로직으로 자동 전환
+            t, kind = calc_fallback_target(avg, cur, held_over=code not in _buy_dirs)
+            _apply(t, kind)
             return
-        target = max(breakeven, cur + 0.5 * max(d["high"] - d["low"], 0))  # 변동폭 절반 위 익절
-        if d.get("upl"):
-            target = min(target, d["upl"])                               # 상한가 캡
-        t = _tick_ceil(target)
-        h["sell_target"] = t
-        # 평단 대비 세후 수익률 — 매도 거래세+수수료 차감 (FE netAfterCost 와 동일 컨벤션)
-        h["sell_target_rt"] = round((t * (1 - TAX - FEE) - avg) / avg * 100, 2)
+        _apply(calc_intraday_target(avg, cur, d["high"], d["low"], d.get("upl") or 0))
 
     await asyncio.gather(*(fill(h) for h in holdings))
 
