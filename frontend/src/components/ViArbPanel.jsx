@@ -29,12 +29,14 @@ export default function ViArbPanel() {
   const [params, setParams] = useState(null);
   const [opps, setOpps] = useState([]);     // opportunity=1 스프레드 틱
   const [events, setEvents] = useState([]); // VI 발동/해제/재개 로그
-  const [stats, setStats] = useState({ vi: 0, opp: 0, ticks: 0 });
+  const [stats, setStats] = useState({ vi: 0, opp: 0, ticks: 0, buys: 0 });
   const [sim, setSim] = useState({ fills: 0, wins: 0, pnl: 0 }); // Phase2 모의 체결
   const [dir, setDir] = useState('+'); // VI 방향 필터 기본=상방. all | + (상방) | - (하방)
   const [bal, setBal] = useState(null);  // 모의계좌 잔고 (kt00004)
   const [dirByCode, setDirByCode] = useState({}); // 종목코드 → VI 방향(+/-) (이벤트서 누적)
   const [trading, setTrading] = useState(false);  // 모의주문 시작/종료 토글
+  const [budget, setBudget] = useState(0);         // 목표 매수 원금(원). 0=무제한
+  const [invested, setInvested] = useState(0);     // 현재 매수원금(서버 동기화)
   const wsRef = useRef(null);
   const retryRef = useRef(null);
 
@@ -57,7 +59,11 @@ export default function ViArbPanel() {
   useEffect(() => {
     fetch('/api/vi-arb/order-control')
       .then((r) => r.json())
-      .then((s) => { if (s && typeof s.enabled === 'boolean') setTrading(s.enabled); })
+      .then((s) => {
+        if (s && typeof s.enabled === 'boolean') setTrading(s.enabled);
+        if (s && typeof s.budget === 'number') setBudget(s.budget);
+        if (s && typeof s.invested === 'number') setInvested(s.invested);
+      })
       .catch(() => {});
   }, []);
 
@@ -98,6 +104,8 @@ export default function ViArbPanel() {
           setEvents((p) => [{ ...m, id: `${m.code}-${m.ts}-f`, kind: 'sim' }, ...p].slice(0, 40));
         } else if (m.type === 'order') {
           setEvents((p) => [{ ...m, id: `${m.code}-${m.ts}-o`, kind: 'order' }, ...p].slice(0, 40));
+          // 매수 주문 접수 성공 → 매수 횟수 카운트
+          if (m.ok && m.side !== '매도') setStats((s) => ({ ...s, buys: s.buys + 1 }));
         } else if (m.type === 'order_fill') {
           setEvents((p) => [{ ...m, id: `${m.code}-${m.ts}-${m.status}-of`, kind: 'order_fill' }, ...p].slice(0, 40));
           // 매도 체결 → 보유종목에서 실시간 차감/제거 (WSS 이벤트 기반, 폴링 기다리지 않음)
@@ -124,16 +132,23 @@ export default function ViArbPanel() {
   }, []);
 
   const tradeVerb = dir === '+' ? '매수' : dir === '-' ? '매도' : '매수·매도';
-  const postOrderControl = (enabled, d) => {
+  const postOrderControl = (enabled, d, b = budget) => {
     fetch('/api/vi-arb/order-control', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled, dir: d }),
-    }).catch(() => {});
+      body: JSON.stringify({ enabled, dir: d, budget: b }),
+    })
+      .then((r) => r.json())
+      .then((s) => { if (s && typeof s.budget === 'number') setBudget(s.budget); })
+      .catch(() => {});
   };
   const toggleTrading = () => {
     const next = !trading;
     setTrading(next);
     postOrderControl(next, dir);
+  };
+  const applyBudget = (won) => {
+    setBudget(won);
+    postOrderControl(trading, dir, won);
   };
   const [selling, setSelling] = useState(false);
   const [sellingCode, setSellingCode] = useState(null); // 개별 매도 진행중 종목
@@ -243,26 +258,47 @@ export default function ViArbPanel() {
               {label}
             </button>
           ))}
-          <button
-            className={`vi-trade-toggle ${trading ? 'on' : ''}`}
-            onClick={toggleTrading}
-            title={`선택된 필터(${dir === 'all' ? '전체' : dir === '+' ? '상방' : '하방'}) 기준 모의주문 ${trading ? '종료' : '시작'}`}
-            style={{
-              marginLeft: 8, padding: '6px 14px', borderRadius: 6, fontWeight: 700, fontSize: 13,
-              border: 'none', cursor: 'pointer', color: '#fff',
-              background: trading ? '#E53935' : '#2e7d32',
-            }}
-          >
-            {trading ? `■ ${tradeVerb} 종료` : `▶ ${tradeVerb} 시작`}
-          </button>
+          <label style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)' }}>
+            목표 매수원금
+            <input
+              type="text" inputMode="numeric"
+              defaultValue={budget ? budget.toLocaleString() : ''}
+              key={budget}
+              onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ''); e.target.value = raw ? Number(raw).toLocaleString() : ''; }}
+              onBlur={(e) => applyBudget(Number(e.target.value.replace(/,/g, '')) || 0)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.currentTarget.blur(); } }}
+              placeholder="0=무제한"
+              style={{ width: 140, padding: '5px 8px', borderRadius: 5, border: '1px solid var(--border, #444)', background: 'var(--card, #1a1a1a)', color: 'inherit', fontSize: 13, textAlign: 'right' }}
+            />
+            원
+          </label>
         </div>
         <button
           className="vi-clear"
-          onClick={() => { setOpps([]); setEvents([]); setStats({ vi: 0, opp: 0, ticks: 0 }); setSim({ fills: 0, wins: 0, pnl: 0 }); }}
+          onClick={() => { setOpps([]); setEvents([]); setStats({ vi: 0, opp: 0, ticks: 0, buys: 0 }); setSim({ fills: 0, wins: 0, pnl: 0 }); }}
           title="기회 포착·VI 이벤트 로그 전체 비우기"
         >
           🗑 전체 비우기
         </button>
+      </div>
+
+      <div className="vi-controls" style={{ marginTop: 8 }}>
+        <button
+          className={`vi-trade-toggle ${trading ? 'on' : ''}`}
+          onClick={toggleTrading}
+          title={`선택된 필터(${dir === 'all' ? '전체' : dir === '+' ? '상방' : '하방'}) 기준 모의주문 ${trading ? '종료' : '시작'}`}
+          style={{
+            padding: '8px 20px', borderRadius: 6, fontWeight: 700, fontSize: 14,
+            border: 'none', cursor: 'pointer', color: '#fff',
+            background: trading ? '#E53935' : '#2e7d32',
+          }}
+        >
+          {trading ? `■ ${tradeVerb} 종료` : `▶ ${tradeVerb} 시작`}
+        </button>
+        <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-muted)' }}>
+          매수원금 <b style={{ color: 'inherit' }}>{fmt(bal?.buy_amount ?? invested)}원</b>
+          {budget ? <> / 목표 {fmt(budget)}원 {(bal?.buy_amount ?? invested) >= budget && <span style={{ color: '#E53935' }}>· 목표도달, 매수중단</span>}</> : ' (무제한)'}
+        </span>
       </div>
 
       {bal && (
@@ -290,6 +326,7 @@ export default function ViArbPanel() {
         <div className="vi-stat"><span>VI 발동</span><b>{stats.vi}</b></div>
         <div className="vi-stat"><span>기회 포착</span><b style={{ color: 'var(--up, #E53935)' }}>{stats.opp}</b></div>
         <div className="vi-stat"><span>스프레드 틱</span><b>{fmt(stats.ticks)}</b></div>
+        <div className="vi-stat"><span>매수 횟수</span><b style={{ color: '#E53935' }}>{stats.buys}</b></div>
         <div className="vi-stat">
           <span>모의손익 (체결 {sim.fills} · 승 {sim.fills ? Math.round((sim.wins / sim.fills) * 100) : 0}%)</span>
           <b style={{ color: sim.pnl >= 0 ? '#E53935' : '#1E88E5' }}>{sim.pnl >= 0 ? '+' : ''}{fmt(sim.pnl)}원</b>

@@ -382,7 +382,12 @@ async def vi_arb_stats():
 async def vi_arb_balance():
     """모의계좌(81277130) 평가현황 — 예수금·평가액·손익·보유종목 (kt00004)."""
     from services.kiwoom_order import get_balance
-    return get_balance()
+    bal = get_balance()
+    # 현재 매수원금으로 budget 캐시 동기화 (매도로 줄어든 만큼 보정)
+    if bal.get("ok"):
+        from services import vi_arb_kiwoom
+        vi_arb_kiwoom.set_invested(bal.get("buy_amount", 0))
+    return bal
 
 
 @router.get("/vi-arb/order-control")
@@ -394,9 +399,10 @@ async def vi_arb_order_control_get():
 
 @router.post("/vi-arb/order-control")
 async def vi_arb_order_control_set(payload: dict = Body(default={})):
-    """모의주문 시작/종료 + 방향 스코프 (FE 토글). body: {enabled: bool, dir: 'all'|'+'|'-'}."""
+    """모의주문 시작/종료 + 방향 스코프 + 목표 매수원금 (FE). body: {enabled, dir, budget}."""
     from services import vi_arb_kiwoom
-    state = vi_arb_kiwoom.set_order_control(payload.get("enabled", False), payload.get("dir", "all"))
+    state = vi_arb_kiwoom.set_order_control(
+        payload.get("enabled", False), payload.get("dir", "all"), payload.get("budget"))
     return {"ok": True, **state}
 
 

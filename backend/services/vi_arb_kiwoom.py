@@ -17,7 +17,7 @@ import json
 import logging
 import time
 
-from config import KIWOOM_ENVS, VI_ARB_UNIVERSE, VI_ARB_ORDER, VI_ARB_OBS_ENV
+from config import KIWOOM_ENVS, VI_ARB_UNIVERSE, VI_ARB_ORDER, VI_ARB_OBS_ENV, VI_ARB_ORDER_QTY
 from services.vi_arb import TAX, FEE, EDGE_BUFFER, _now_iso
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,10 @@ def _env_ws_connect(env: dict):
     import websockets
     host = urllib.parse.urlparse(env["base_url"]).netloc
     ctx = ssl.create_default_context()
-    return websockets.connect(f"wss://{host}:10000/api/dostk/websocket", ssl=ctx, open_timeout=15)
+    # ping_interval=None: 라이브러리 자동 ping 비활성 — Kiwoom 은 프로토콜 ping 에 응답 안 해
+    # ~20s 후 keepalive timeout(1011)으로 끊김. 대신 Kiwoom 앱레벨 PING(trnm=PING) echo 로 유지.
+    return websockets.connect(f"wss://{host}:10000/api/dostk/websocket", ssl=ctx,
+                              open_timeout=15, ping_interval=None)
 
 
 def check_nxt_quote(code: str = "005930") -> dict:
@@ -258,19 +261,46 @@ _KRX_0H_FRESH_SEC = 3  # WS 0H 예상체결가가 이 시간 내 수신됐으면
 
 # 런타임 모의주문 제어 (FE 시작/종료 토글). 기본: 정지 — 사용자가 '시작' 버튼으로 명시 시작.
 _order_enabled = False
-_order_dir = "+"   # 기본 방향 스코프: 상방(매수)
+_order_dir = "+"           # 기본 방향 스코프: 상방(매수)
+_order_budget = 0          # 목표 매수 원금(원). 0=무제한. 현재 매수원금이 이 값 도달 시 매수 중단
+_invested_amt = 0.0        # 현재 매수원금 추정 (balance 동기화 + 매수 시 즉시 증가)
 
 
-def set_order_control(enabled: bool, direction: str = "all") -> dict:
-    global _order_enabled, _order_dir
+def set_order_control(enabled: bool, direction: str = "all", budget=None) -> dict:
+    global _order_enabled, _order_dir, _order_budget
     _order_enabled = bool(enabled)
     _order_dir = direction if direction in ("all", "+", "-") else "all"
-    logger.info(f"⚡ 모의주문 제어: enabled={_order_enabled} dir={_order_dir}")
+    if budget is not None:
+        try:
+            _order_budget = max(0, int(budget))
+        except (TypeError, ValueError):
+            pass
+    logger.info(f"⚡ 모의주문 제어: enabled={_order_enabled} dir={_order_dir} budget={_order_budget}")
     return get_order_control()
 
 
 def get_order_control() -> dict:
-    return {"enabled": _order_enabled, "dir": _order_dir}
+    return {"enabled": _order_enabled, "dir": _order_dir,
+            "budget": _order_budget, "invested": round(_invested_amt)}
+
+
+def set_invested(amount) -> None:
+    """현재 매수원금(추정) 동기화 — /balance 조회 시 호출해 캐시 보정."""
+    global _invested_amt
+    try:
+        _invested_amt = float(amount)
+    except (TypeError, ValueError):
+        pass
+
+
+def _add_invested(amount: float) -> None:
+    global _invested_amt
+    _invested_amt += amount
+
+
+def _budget_ok() -> bool:
+    """목표 매수 원금 미설정(0)이거나 현재 매수원금이 목표 미만이면 매수 허용."""
+    return not _order_budget or _invested_amt < _order_budget
 
 # FID — docs 확인 (p.471/481/487/505/529)
 FID_CODE = "9001"       # 종목코드
@@ -463,9 +493,11 @@ async def _on_real(ws, broadcast, watches, recent, d: dict) -> None:
             watches[code] = w
             await _sub_dynamic(ws, code)                       # KRX 예상체결(WS)
             asyncio.create_task(_poll_nxt_spread(broadcast, w))  # NXT 매도호가(REST 폴링)
-            if _order_enabled and _order_dir in ("all", direction):
+            if _order_enabled and _order_dir in ("all", direction) and _budget_ok():
                 w.ordered = True
                 await _place_mock_order(broadcast, w)
+                # 매수 추정액 즉시 반영 (다음 VI 가 같은 캐시로 초과 매수하지 않도록)
+                _add_invested((w.trigger or 0) * VI_ARB_ORDER_QTY)
         return
 
     w = watches.get(code)
