@@ -30,8 +30,35 @@ def _job():
         res = update_cycle_record(dry_run=False)
         if res.get("updated"):
             logger.info(f"⏰ 회차기록 자동 갱신: 주차 {res.get('week')} {res.get('added')}")
+            _notify_cycle_record(res)
     except Exception as e:
         logger.warning(f"스케줄 회차기록 실패: {e}")
+
+
+def _notify_cycle_record(res: dict) -> None:
+    """회차기록이 실제 갱신된 순간에만 Discord 채널로 체결 알림.
+
+    update_cycle_record 가 idempotent(이미 기록된 tier 는 updated=False)라
+    이 함수는 '새로 체결 기록된' 경우에만 호출돼 중복 알림이 없다.
+    res['added'] 는 이번에 새로 기록된 항목: 매도=양수 문자열, 매수='-' 접두.
+    """
+    try:
+        from services.discord_service import send_discord
+        added = res.get("added") or []
+        sells = [e for e in added if not e.startswith("-")]
+        buys = [e[1:] for e in added if e.startswith("-")]
+        now = datetime.now(KST)
+        lines = [f"🔔 **장중 회차기록** — {res.get('week')}주차  _{now:%H:%M} KST_"]
+        if sells:
+            lines.append("🔴 매도 체결: " + ", ".join(f"${p}" for p in sells))
+        if buys:
+            lines.append("🔵 매수 체결: " + ", ".join(f"${p}" for p in buys))
+        rng = res.get("range") or []
+        if len(rng) == 2:
+            lines.append(f"세션 범위: ${rng[0]:g} ~ ${rng[1]:g}")
+        send_discord("\n".join(lines))
+    except Exception as e:
+        logger.warning(f"회차기록 Discord 알림 실패: {e}")
 
 
 def _brief_job(header: str, predict: bool = False, score: bool = False):
