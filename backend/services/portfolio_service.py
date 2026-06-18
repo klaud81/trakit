@@ -181,9 +181,14 @@ def get_current_portfolio(current_price: Optional[float] = None) -> dict:
     profit = round((price - avg_cost) * shares, 2) if avg_cost and avg_cost > 0 else None
     profit_pct = round((price - avg_cost) / avg_cost * 100, 2) if avg_cost and avg_cost > 0 else None
 
-    # 총 원금 및 총 손익: 원금 = 주차 * $100 (2주당 $200)
+    # 총 원금 = 시트의 누적 적립액(적립액 열) 우선. 시트 수식이 이상치를 보정해 정확함.
+    # CSV fallback 등으로 적립액이 없으면 적립금(K열) 누적합으로 대체
     week_num = _week_num_int(last["week_num"])
-    total_invested = round(week_num * 100, 2) if week_num > 0 else 0
+    cum_contribution = _safe_float(last.get("cumulative_contribution"))
+    if cum_contribution is not None and cum_contribution > 0:
+        total_invested = round(cum_contribution, 2)
+    else:
+        total_invested = round(float(pd.to_numeric(valid["contribution"], errors="coerce").sum()), 2)
     total_profit = round(total_value - total_invested, 2) if total_invested > 0 else None
     total_profit_pct = round((total_value / total_invested) * 100, 2) if total_invested > 0 else None
 

@@ -23,6 +23,14 @@ def _load_from_google_sheets() -> pd.DataFrame:
     else:
         consumption = pd.Series([None] * len(df))
 
+    # 누적 적립액 컬럼 (0-indexed 35) 별도 추출 — 시트가 직접 관리하는 누적 원금.
+    # 적립금(K열) 합산과 달리 이상치(예: week210=2000)를 시트 수식이 보정해 정확함
+    if df.shape[1] > 35:
+        cum_raw = df.iloc[:, 35].astype(str).str.replace(",", "", regex=False)
+        cum_contribution = pd.to_numeric(cum_raw, errors="coerce")
+    else:
+        cum_contribution = pd.Series([None] * len(df))
+
     # 사용할 컬럼만 선택 (처음 20개)
     df = df.iloc[:, :20].copy()
 
@@ -35,6 +43,7 @@ def _load_from_google_sheets() -> pd.DataFrame:
         "trade_amount", "pool_start", "pool_end", "fee_rate", "purchase"
     ]
     df["consumption_rate"] = consumption.values
+    df["cumulative_contribution"] = cum_contribution.values
 
     # week_label에서 week_num 추출 ("142 주차" → "142", "205주차" → "205")
     df["week_num"] = df["week_label"].astype(str).str.extract(r'(\d+)')[0]
@@ -55,6 +64,7 @@ def _load_from_csv(path: Optional[Path] = None) -> pd.DataFrame:
         "trade_amount", "pool_start", "pool_end", "fee_rate", "purchase"
     ]
     df["consumption_rate"] = pd.NA
+    df["cumulative_contribution"] = pd.NA
 
     return df
 
