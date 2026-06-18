@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  TQQQ 일일 스샷 → Discord 로컬 launchd — 월~금 22:30 KST.
+  설치:
+    cp scripts/daily-shot/com.trakit.daily-shot.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.trakit.daily-shot.plist
+  해제:
+    launchctl unload ~/Library/LaunchAgents/com.trakit.daily-shot.plist
+  즉시 1회 테스트:
+    launchctl start com.trakit.daily-shot
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.trakit.daily-shot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/klaud/git/claudkim/trakit/scripts/daily-shot/daily_shot.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>22</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/klaud/git/claudkim/trakit/data/daily-shots/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/klaud/git/claudkim/trakit/data/daily-shots/launchd.err.log</string>
+</dict>
+</plist>

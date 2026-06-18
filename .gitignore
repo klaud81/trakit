@@ -12,7 +12,6 @@ data/.kis_token.json
 .kiwoom_token.json
 backend/.kiwoom_token.json
 data/.kiwoom_token.json
-backend/.vi_arb_state.json
 .gsa.json
 backend/.gsa.json
 *service-account*.json
@@ -26,4 +25,10 @@ data/briefing.db
 data/visitors.json
 # 대용량 참조 문서(로컬 보관) — rq-01-001.md 에 위치만 기록
 docs/kiwoom-rest-api.pdf
-data/vi_arb.db
+data/prediction.db
+# rq-02 sonnet 재빌드 전 haiku 캐시 백업(로컬 보관)
+data/news_bias_cache.haiku-bak-*/
+data/ticker_graph.haiku-bak-*/
+
+# 일일 스샷 cron 산출/로그
+data/daily-shots/

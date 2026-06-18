@@ -34,11 +34,12 @@ def _job():
         logger.warning(f"스케줄 회차기록 실패: {e}")
 
 
-def _brief_job(header: str):
+def _brief_job(header: str, predict: bool = False, score: bool = False):
     """signal/trade/portfolio 를 Discord 채널로 전송.
 
     Discord content 2000자 제한 회피를 위해 명령어별로 분리 전송한다.
     명령어 빌더(handle_command)를 그대로 재사용해 슬래시 명령과 동일한 출력.
+    predict=True 면 🔮 사전장 예측, score=True 면 ✅ 장종료 채점 메시지를 덧붙인다(rq-02).
     """
     from services.discord_bot import handle_command
     from services.discord_service import send_discord
@@ -50,6 +51,18 @@ def _brief_job(header: str):
             send_discord(handle_command(cmd))
         except Exception as e:
             logger.warning(f"브리핑 {cmd} 실패: {e}")
+    if predict:
+        try:
+            from services.discord_bot import build_prediction_msg
+            send_discord(build_prediction_msg())
+        except Exception as e:
+            logger.warning(f"예측 발행 실패: {e}")
+    if score:
+        try:
+            from services.discord_bot import build_scoring_msg
+            send_discord(build_scoring_msg())
+        except Exception as e:
+            logger.warning(f"예측 채점 실패: {e}")
 
 
 def start() -> None:
@@ -78,19 +91,19 @@ def start() -> None:
         # timezone 지정으로 서머타임 자동 처리 (EDT=KST-13h / EST=KST-14h)
         # 사전장 개장: 미 동부 04:00
         _scheduler.add_job(
-            lambda: _brief_job("🔔 **미국 사전장 시작** — TQQQ 자동 브리핑"),
+            lambda: _brief_job("🔔 **미국 사전장 시작** — TQQQ 자동 브리핑", predict=True),
             "cron", day_of_week="mon-fri", hour=4, minute=0,
             timezone="America/New_York",
             id="premarket_brief", max_instances=1, coalesce=True,
         )
         # 장종료 후: 미 동부 16:00 (정규장 마감)
         _scheduler.add_job(
-            lambda: _brief_job("🏁 **미국 장 종료** — TQQQ 마감 브리핑"),
+            lambda: _brief_job("🏁 **미국 장 종료** — TQQQ 마감 브리핑", score=True),
             "cron", day_of_week="mon-fri", hour=16, minute=0,
             timezone="America/New_York",
             id="close_brief", max_instances=1, coalesce=True,
         )
-        logger.info("🔔 브리핑 스케줄 활성화 (ET 04:00 사전장 개장 · 16:00 장종료, 평일)")
+        logger.info("🔔 브리핑 스케줄 활성화 (ET 04:00 사전장 개장+🔮예측 · 16:00 장종료+✅채점, 평일)")
 
     _scheduler.start()
 

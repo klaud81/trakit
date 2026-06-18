@@ -66,7 +66,6 @@ backend/
 │   ├── discord_bot.py         # Discord 슬래시 명령 로직
 │   └── discord_service.py     # Discord 웹훅/명령 등록
 ├── scripts/                # 배치/크론 스크립트
-│   ├── kr_news_sync.py        # 100m1s.com → frontend/public/kr-news 미러링
 │   ├── briefing_collector.py  # 나스닥 헤드라인 수집 (Google News RSS → SQLite)
 │   └── briefing_summarize.py  # 헤드라인 LLM 요약 (Claude CLI subprocess)
 └── test/

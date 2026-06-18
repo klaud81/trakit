@@ -69,25 +69,30 @@ cd backend && python -m pytest test/ -v
 - 차트 (EquityChart, ValueLineChart): Recharts `<Brush>` 슬라이더로 가로 스크롤. 기본 윈도우 마지막 50주차, 자유롭게 리사이즈/팬 가능. Y축은 보이는 구간 기준으로 동적 재계산
 - ProgressCard 계획 트래킹: `/api/goal?offset=N` 호출 (offset=0 라이브 가격, 음수는 시트의 `V(target_value) + pool` 사용). 계획값은 시트의 "계획" 컬럼 직접 추출 (조정 행 포함 → 단순 1.03/1.0 트래젝토리보다 정확). 시간차 막대 ±26주(반년) 풀스케일
 - TradeTable: `cycleTrade` (= portfolio) 의 `executed_prices` / `trade_shares` / `trade_amount` 로 이번 회차 체결 표시. 매도면 가격 ≤ max(체결가) 행, 매수면 가격 ≥ min(체결가) 행을 취소선(line-through, opacity 0.55) 처리. 카드 상단에 회차 진행 배너(횟수·체결 금액) 추가
+- **TQQQ 본문 카드 순서** (App.jsx): PredictionCard → (PortfolioCard · BandCard grid-2) → **SignalPanel → 매수/매도 TradeTable(grid-2) → ProgressCard(Goal Progress)** → 차트(EquityChart · ValueLineChart · PlanVsActualChart). 시그널 바로 아래에 매수/매도·목표를 배치하고 차트는 하단
 - Discord `/signal` 도 동일 로직: 체결가에 해당하는 tier 는 다음 매수/매도 후보에서 제외하고 "이번 회차 매도 체결: $X" 라인으로 별도 표시
 - Discord 명령어: `/help`, `/price`, `/quote symbol:`, `/signal [offset]`, `/portfolio [offset]`, `/goal [offset]`, `/trade` (매수/매도 tier 테이블, 체결가 ✓), `/watch`, `/rate`, `/refresh`. 모두 서버 시작 시 자동 등록 (`register_slash_commands`), 강제 재등록은 `POST /api/discord/register`
-- 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news` / `#vi-arb`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
+- 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
 - 뉴스 라우트(`#news`)에서는 Header / 후원하기 카드 숨김, 방문자 통계는 모든 라우트에 표시
 - NewsPanel 필터: SOURCE_TABS (전체/SAVE/로이터/파이낸셜뉴스) 는 서버측 `label_group` 파라미터로 refetch. CATEGORIES_BY_TAB 은 클라이언트측 `tag_names` 필터 (전체 tab의 '분석' pill은 `분석` OR `시황/분석` 매칭). SAVE_CATEGORIES 는 서버측 `label_name` 파라미터로 refetch
 - NewsDetailModal: 뉴스 행 클릭 → `/api/news/detail/{id}` 조회 → 모달 표시. 닫기: ✕ / 배경 클릭 / Escape. 본문은 `content[]` 의 text 블록을 `\n` 기준으로 단락 분할
 
-### VI 차익거래 (vi-arb)
-- 핵심 파일: `backend/services/vi_arb_kiwoom.py` (관측·주문·상태), `vi_arb.py` (WS 허브), `vi_arb_store.py` (SQLite 적재), `kiwoom_order.py` (모의 주문 REST), FE `frontend/src/components/ViArbPanel.jsx`. 요구사항: `rq-01-001.md`
-- 관측 WS = real 환경 (VI `1h` + KRX/NXT 동적구독), 주문 = mock 환경. Kiwoom REST: kt10000 매수 / kt10001 매도 / kt10002 정정 / kt10003 취소 / ka10074 일자별실현손익 / ka10075 미체결 / ka10001 기본정보(당일 고저·상한가)
-- **상태 영속화**: `backend/.vi_arb_state.json` (gitignore) — **당일 한정**으로 주문 제어(enabled/dir/budget), 오늘 매수 종목 VI 방향(`buy_dirs`), 지정가 매도 등록(`limit_sells`) 저장. `--reload` 워커 재시작 시 모듈 임포트 시점 자동 복원 (전일 상태는 복원 안 함 — 다음날 매수 자동 재개 방지). **주의: 백엔드 파일 저장 = reload = 영속화 없던 시절엔 매수가 조용히 꺼졌음**
-- **당일 통계 복원**: `vi_arb_store.today_stats()` 가 vi_arb.db 에서 VI 발동·틱·기회·매수횟수·모의손익(`sim_fills` 테이블) 집계 → WS `hello` 에 `stats`·`buy_dirs` 포함 → FE 새로고침해도 카운터·보유종목 VI 배지 유지
-- **추천 매도가**: `add_sell_targets(holdings)` — ka10001 당일 고저 10분 캐시(미스만 4-동시 병렬) 기반 `max(세후 손익분기, 현재가 + 당일변동폭×0.5)` → 상한가 캡 → KRX 호가단위 올림(`_tick_ceil`). `sell_target_rt` = **평단 대비 세후**(매도 거래세 0.0015 + 수수료 0.00015 차감, FE `netAfterCost` 와 동일 컨벤션). `/api/vi-arb/balance` 응답 holdings 에 주입
-- **지정가 매도**: 등록(`/sell-limit`)·취소(`/sell-limit/cancel`, cncl_qty=0 잔량 전부)·일괄(`/sell-limit/bulk`, `min_rt` 세후수익률 필터 + 0.3s 스로틀). 등록부는 상태 파일 영속 + `/balance` `limit_sells` 로 FE 버튼 동기화. 체결(00 스트림) 시 잔량 차감 → 전량 체결 시 해제. **자동 재조정**: `/balance` 폴링마다 추천가 ≠ 등록가면 kt10002 정정 (종목당 10분 간격, `asyncio.Lock` 직렬화 — 동시 호출 이중 정정 시 소멸된 원주문번호로 등록 풀리는 레이스 방지)
-- **디스코드 체결 알림**: `.env` `VI_ARB_DISCORD_WEBHOOK` (config.py 로드, 미설정 시 무시). `asyncio.Queue` 큐잉 — 첫 건 후 0.5s grace 동안 최대 10건을 한 메시지로 배치, 전송 간 0.5s, 429 는 Retry-After 대기 후 1회 재시도. **urllib 기본 UA 는 Discord Cloudflare 가 403 차단 → 명시 User-Agent 필수**
-- **정시 브리핑**: `hourly_summary_loop()` (app.py lifespan 에서 기동) — **월~금 KST 08~16시** 매 정시(:00)에 계좌·통계 요약을 디스코드 전송 (매수 on/off 무관, 공휴일 미구분). `.env` `VI_ARB_HOURLY_BRIEFING=false` 로 끔 (기본 true)
-- **추천 매도가 함수**: `calc_fallback_target`(개장 전 폴백 — 이월 보유 3단계: ≥+0.5% → max(손익분기,현재가) / +0.5%~-7% → 세후 +0.5% 고정 / ≤-7% → 손실률 1/3 손절가) · `calc_intraday_target`(장중 변동폭) · `calc_net_rate` — 순수 함수, `test/test_vi_arb_targets.py` 13개 단위 테스트
-- **당일 실현손익**: `kiwoom_order.today_realized_pl()` (ka10074, 60초 캐시) → `/balance` `realized_pl_today`. 모의계좌 `tdy_lspft` 는 항상 0 이므로 사용 금지
-- FE: 주문 제어(시작/방향/예산)는 15초 폴링으로 서버와 양방향 동기화 (필터 클릭 즉시 POST, 예산 입력 중엔 폴링이 덮어쓰지 않음). 보유종목 ▲/▼VI 배지는 매수 시점 방향(`buyDirs`) 우선 — 이후 반대 VI 관측돼도 안 뒤집힘. 체결 토스트(중앙 상단, 5.5s 표시 + 1.5s 페이드아웃): VI 매수 전부 + 등록된 지정가 매도 체결. 폭죽 = 캔버스 파티클 8발 시간차 ~7.5s (저알파 페이드 잔상). 추천가 > 현재가면 엣지 박스 강조. 일괄매도 confirm 에 지정가 등록 종목 경고 포함
+### TQQQ 일간 예측 (rq-02, prediction)
+- 핵심 파일: `scripts/predict_backtest.py` (결정론 코어 `predict_core`·백테스트·캘리브레이션), `services/prediction_ledger.py` (SQLite `data/prediction.db` 발행/채점/누적성적), `services/nasdaq_news.py` (saveticker 수집+LLM bias), `services/ticker_graph.py` (지식그래프), FE `components/PredictionCard.jsx`. 요구사항: `rq-02-001.md`
+- 예측 3종: **흐름(레짐)** 다일추세 / **방향** 1일모멘텀 / **밴드** P20~P80 등락폭. 색상: 상승=빨강(--sell), 하락=파랑(--buy)
+- 뉴스 bias 는 saveticker → `day_bias(D-1)` (캐시 미스 시 라이브 수집·분석·캐시). 모델은 `.env NEWS_LLM=claude_cli/NEWS_CLAUDE_MODEL=sonnet` (재빌드 캐시와 일관)
+- **`INFLECT_TH=0.5`**: 뉴스 변곡 임계. 스윕 결과 임계↑일수록 방향적중↑(변곡 플립은 대부분 오답) → 뉴스는 방향플립보다 설명/이벤트 레이어 위주. 가격전용 vs +뉴스 A/B: 방향적중 동률(62.5%)
+- **밴드 드리프트 보정**: `predict_core(drift)` + `calibrate_joint`(width=커버리지 / drift=폭편향, 거의 직교라 교대최적화). 폭편향 +0.72→−0.01%p
+- ledger: `predict_and_record` 발행(date 중복 덮어씀) → `score_due` 다음날 KIS 실측 채점 → `recent_scorecard`/`scorecard_prompt` 누적성적(피드백-인-컨텍스트용)
+- 스케줄러: `scheduler._brief_job(predict=/score=)` — 사전장(ET 04:00) 🔮예측, 장종료(ET 16:00) ✅채점 (Discord). `PREMARKET_BRIEF_ENABLED` 게이트
+- **뉴스 캐시 백업**: `data/news_bias_cache.haiku-bak-*`, `data/ticker_graph.haiku-bak-*` (sonnet 재빌드 전 haiku 캐시). 재빌드: `NEWS_LLM=claude_cli NEWS_CLAUDE_MODEL=sonnet python -m scripts.rebuild_news_sonnet`
+
+### 일일 스샷 → Discord (daily-shot cron)
+- **월~금 22:30 KST** 로컬 launchd `com.trakit.daily-shot` 가 `:5173/#tqqq` 를 **Goal Progress 카드까지 클립 캡처**(playwright) → `data/daily-shots/tqqq-YYYY-MM-DD.png` 저장 → Discord 웹훅(`DISCORD_WEBHOOK_URL`) 첨부 전송
+- 핵심 파일: `scripts/daily-shot/{shot.mjs(캡처+전송), daily_shot.sh(래퍼·backend/.env 로드), com.trakit.daily-shot.plist}`. 산출/로그(`cron.log`)는 `data/daily-shots/` (gitignore)
+- 캡처 식별: `.card-title="Goal Progress"` 엘리먼트 하단까지 clip. 본문 HTML 은 CJS playwright → `import pw from '<PW_PKG>'; const {chromium}=pw` (named import 불가)
+- **전제**: 발화 시각에 `:5173`(프론트)+`:8000`(백엔드)가 떠 있어야 캡처됨(없으면 `cron.log` 기록·전송 스킵). Mac 잠자기면 깨어날 때 1회 지연 발화
+- 설치: plist 를 `~/Library/LaunchAgents/` 복사 후 `launchctl load`. 즉시 테스트 `launchctl start com.trakit.daily-shot`. 끄기 `launchctl unload …`
 
 ### 디자인 (Pencil)
 - .pen 파일은 Pencil MCP 도구로만 읽기/수정 (Read/Grep 사용 금지)
@@ -112,18 +117,10 @@ cd backend && python -m pytest test/ -v
 | GET | `/api/config` | 프론트엔드 설정 (갱신 시간대/간격) |
 | GET | `/api/exchange-rate` | USD/KRW 환율 (KST 17시 이후 갱신) |
 | GET | `/api/goal` | 목표 진행률 + 계획대비 + 시간차 (`?offset=0` 현재 라이브, `<0` 시트 V+pool) |
+| GET | `/api/prediction` | TQQQ 일간 예측 (흐름·방향·밴드·근거·bias) + 누적성적 + 이력. `?refresh=1` 새 발행(뉴스 LLM) |
 | POST | `/api/discord/register` | Discord 슬래시 명령어 강제 재등록 (수동 트리거) |
 | GET | `/api/news` | 뉴스 목록 프록시 (saveticker, 60초 캐시). 파라미터: `page`, `page_size`, `label_group`, `label_name`, `sort` |
 | GET | `/api/news/detail/{id}` | 뉴스 상세 프록시 (saveticker, 5분 캐시) |
-| WS | `/api/ws/vi-arb` | VI 관측 실시간 스트림 (hello 에 stats/buy_dirs 포함) |
-| GET | `/api/vi-arb/balance` | 모의계좌 잔고 + holdings(sell_target 주입) + limit_sells + realized_pl_today. 호출 시 지정가 자동 재조정 |
-| GET/POST | `/api/vi-arb/order-control` | 모의주문 제어 (enabled/dir/budget/invested) — 상태 파일 영속 |
-| POST | `/api/vi-arb/sell-limit` | 지정가 매도 등록 {code, price, qty} |
-| POST | `/api/vi-arb/sell-limit/cancel` | 지정가 매도 취소 {code} (잔량 전부) |
-| POST | `/api/vi-arb/sell-limit/bulk` | 일괄 지정가 매도 {min_rt} — 세후수익률 필터 |
-| POST | `/api/vi-arb/sell` | 개별 시장가 매도 |
-| POST | `/api/vi-arb/sell-all` | 전 보유종목 시장가 일괄매도 (스로틀) |
-| GET | `/api/vi-arb/stats` | vi_arb.db 적재 현황 |
 
 상세: [docs/api-spec.md](docs/api-spec.md)
 
@@ -139,8 +136,14 @@ cd backend && python -m pytest test/ -v
 ## 테스트
 
 ```bash
-cd backend && python -m pytest test/ -v  # API 19개 + VI 추천가 단위 13개
+cd backend && python -m pytest test/ -v  # API 19개
 ```
 
-테스트 파일: `backend/test/test_api.py` (FastAPI TestClient 기반),
-`backend/test/test_vi_arb_targets.py` (추천 매도가 순수 함수 단위 테스트 — 네트워크 무관)
+테스트 파일: `backend/test/test_api.py` (FastAPI TestClient 기반)
+
+## 작업 관리 (REQ 워크플로)
+
+- **할 일 목록 = [BACKLOG.md](BACKLOG.md)** — 대화로 합의한 작업을 항목으로 적재. **한 항목 = 독립 PR 단위.**
+- 흐름: **대화 → BACKLOG 항목 추가 → (복잡하면 `rq-NN-NNN.md` 스펙) → worktree+브랜치로 작업(main 직접 push 금지·브랜치 우선) → PR → [WORKLOG.md](WORKLOG.md) 상세 기록 → 완료 시 `records/YYYY-MM/<작업ID>.md` 아카이브.**
+- 병렬 작업은 작업마다 **git worktree 격리**(`git worktree add`)로 충돌 방지.
+- 새 요구사항 상세 스펙은 기존 컨벤션 `rq-NN-NNN.md` 유지. 작은 작업은 BACKLOG 한 줄로 충분.

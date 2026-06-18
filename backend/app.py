@@ -37,18 +37,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
-    # run_in_executor 기본 스레드풀 확대 — VI 차익 NXT 호가 폴러(블로킹 REST) 다수 동시 실행 대비
+    # run_in_executor 기본 스레드풀 확대 — 블로킹 REST 폴러 다수 동시 실행 대비
     asyncio.get_running_loop().set_default_executor(
         ThreadPoolExecutor(max_workers=64, thread_name_prefix="trakit"))
-    from services import scheduler, vi_arb_kiwoom
+    from services import scheduler
     await night_future_service.start()
     scheduler.start()  # SCHEDULE_ENABLED=true 면 회차기록 자동 기록 스케줄 등록
-    # VI 매수 가동 중이면 매 정시 디스코드 요약
-    summary_task = asyncio.get_running_loop().create_task(vi_arb_kiwoom.hourly_summary_loop())
     try:
         yield
     finally:
-        summary_task.cancel()
         scheduler.stop()
         await night_future_service.stop()
 

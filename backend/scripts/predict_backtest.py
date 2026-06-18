@@ -37,7 +37,9 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 from services.price_service import get_overseas_daily  # noqa: E402  (KIS 우선 + Yahoo fallback)
 
-INFLECT_TH = 0.4   # 뉴스 변곡 임계: |bias|≥이 값이고 추세와 반대면 반전 예측
+INFLECT_TH = 0.5   # 뉴스 변곡 임계: |bias|≥이 값이고 추세와 반대면 반전 예측
+#   sweep_inflect 결과(64일·반전24일): TH↑일수록 방향적중 단조상승(0.40→59.4% / 0.50→62.5%).
+#   뉴스 변곡 플립은 대부분 오답 → 0.50 으로 억제 시 가격전용(62.5%)과 동률. 뉴스는 설명/이벤트 레이어 위주.
 
 
 # ── 피처 ──────────────────────────────────────────────────────────────────
@@ -111,7 +113,7 @@ def _build_reasons(f: dict, news: dict | None, ma_aligned: bool) -> tuple[list, 
         up = [t for t, j in pt.items() if j == "호재"]
         dn = [t for t, j in pt.items() if j == "악재"]
         if up or dn:
-            cand.append({"factor": f"종목뉴스: 호재 {up or '-'} / 악재 {dn or '-'}",
+            cand.append({"factor": f"종목뉴스: 호재 {', '.join(up) or '-'} / 악재 {', '.join(dn) or '-'}",
                          "score": round(news.get("nasdaq_bias", 0.0) * 2, 2),
                          "related": up + dn})
         # 3) 공통 매크로
@@ -147,12 +149,13 @@ def _build_reasons(f: dict, news: dict | None, ma_aligned: bool) -> tuple[list, 
 
 
 def predict_core(f: dict, width: float, bias: float = 0.0, news: dict | None = None,
-                 bias_w_dir: float = 2.0, bias_w_band: float = 0.5) -> dict:
+                 bias_w_dir: float = 2.0, bias_w_band: float = 0.5, drift: float = 0.0) -> dict:
     if news is not None:
         bias = news.get("nasdaq_bias", 0.0)
     pc = f["prev_close"]
-    # 밴드: 저가 P20 / 고가 P80 경험분위수 × 폭 배수, 뉴스 bias 로 중앙 시프트
-    shift = bias * bias_w_band  # %p
+    # 밴드: 저가 P20 / 고가 P80 경험분위수 × 폭 배수, 뉴스 bias + 상승드리프트로 중앙 시프트.
+    # drift(%p): TQQQ 구조적 상승드리프트 보정 — 종가가 밴드중앙보다 위로 치우치는 폭편향 축소.
+    shift = bias * bias_w_band + drift  # %p
     lo_p = float(np.percentile(f["low_rets"], 20)) * width + shift
     hi_p = float(np.percentile(f["high_rets"], 80)) * width + shift
     band_low = round(pc * (1 + lo_p / 100), 2)
@@ -194,7 +197,7 @@ def predict_core(f: dict, width: float, bias: float = 0.0, news: dict | None = N
 
 # ── 백테스트 ───────────────────────────────────────────────────────────────
 def backtest(hist: list, days: int, lookback: int, width: float,
-             news_map: dict | None = None, rhorizon: int = 3) -> dict:
+             news_map: dict | None = None, rhorizon: int = 3, drift: float = 0.0) -> dict:
     n = len(hist)
     rows = []
     for i in range(n - days, n):
@@ -203,7 +206,7 @@ def backtest(hist: list, days: int, lookback: int, width: float,
             continue
         # D일 예측은 D-1(전 거래일) 뉴스만 사용 (lookahead 차단)
         news = (news_map or {}).get(hist[i - 1]["date"])
-        p = predict_core(f, width, news=news)
+        p = predict_core(f, width, news=news, drift=drift)
         actual = hist[i]
         prev = hist[i - 1]["close"]
         act_pct = (actual["close"] - prev) / prev * 100
@@ -249,11 +252,12 @@ def backtest(hist: list, days: int, lookback: int, width: float,
             "rev_recall": rev_recall, "rev_prec": rev_prec}
 
 
-def calibrate(hist: list, days: int, lookback: int, news_map: dict | None = None) -> float:
+def calibrate(hist: list, days: int, lookback: int, news_map: dict | None = None,
+              drift: float = 0.0) -> float:
     """밴드 폭 배수를 그리드 탐색 → 커버리지를 60%에 가장 근접."""
     best, best_err = 1.0, 1e9
     for w in np.arange(0.3, 2.01, 0.05):
-        r = backtest(hist, days, lookback, float(w), news_map)
+        r = backtest(hist, days, lookback, float(w), news_map, drift=drift)
         if not r["rows"]:
             continue
         err = abs(r["cover"] - 0.60)
@@ -262,11 +266,40 @@ def calibrate(hist: list, days: int, lookback: int, news_map: dict | None = None
     return round(best, 2)
 
 
+def calibrate_drift(hist: list, days: int, lookback: int, width: float,
+                    news_map: dict | None = None) -> float:
+    """밴드 중앙 드리프트(%p)를 그리드 탐색 → 폭편향(band_bias)을 0 에 가장 근접.
+
+    드리프트는 밴드를 위/아래로 평행이동만 하므로 폭(커버리지)과 거의 직교.
+    band_bias 가 +면 종가가 중앙보다 위 → 중앙을 +방향으로 올려(=drift+) 편향 축소.
+    """
+    best, best_err = 0.0, 1e9
+    for d in np.arange(-1.5, 1.51, 0.05):
+        r = backtest(hist, days, lookback, width, news_map, drift=float(d))
+        if not r["rows"]:
+            continue
+        err = abs(r["bias"])
+        if err < best_err:
+            best_err, best = err, float(d)
+    return round(best, 2)
+
+
+def calibrate_joint(hist: list, days: int, lookback: int,
+                    news_map: dict | None = None, iters: int = 2) -> tuple[float, float]:
+    """width(커버리지)·drift(편향) 교대 최적화. 거의 직교라 2회면 수렴."""
+    width, drift = 1.0, 0.0
+    for _ in range(iters):
+        width = calibrate(hist, days, lookback, news_map, drift=drift)
+        drift = calibrate_drift(hist, days, lookback, width, news_map)
+    return width, drift
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=20, help="백테스트 거래일 수")
     ap.add_argument("--lookback", type=int, default=20, help="분위수/모멘텀 룩백")
     ap.add_argument("--width", type=float, default=None, help="밴드 폭 배수(미지정 시 자동 캘리브)")
+    ap.add_argument("--drift", type=float, default=None, help="밴드 중앙 드리프트 %p(미지정 시 자동 캘리브)")
     ap.add_argument("--news", action="store_true", help="뉴스 bias 사용(나스닥 top5+매크로 지식그래프)")
     ap.add_argument("--rhorizon", type=int, default=3, help="레짐 채점 전방 거래일 수")
     args = ap.parse_args()
@@ -286,10 +319,18 @@ def main() -> int:
         avg = np.mean([abs(v.get("nasdaq_bias", 0.0)) for v in news_map.values()])
         print(f"📰 뉴스 적용: {len(news_map)}일 (평균 |bias| {avg:.2f})\n")
 
-    width = args.width if args.width else calibrate(hist, args.days, args.lookback, news_map)
-    print(f"🎛  밴드 폭 배수 = {width} (목표 커버리지 60%)\n")
+    if args.width is not None and args.drift is not None:
+        width, drift = args.width, args.drift
+    elif args.width is not None:
+        width = args.width
+        drift = calibrate_drift(hist, args.days, args.lookback, width, news_map)
+    else:
+        width, drift = calibrate_joint(hist, args.days, args.lookback, news_map)
+        if args.drift is not None:
+            drift = args.drift
+    print(f"🎛  밴드 폭 배수 = {width} (커버리지 60%) · 드리프트 = {drift:+.2f}%p (편향 0)\n")
 
-    r = backtest(hist, args.days, args.lookback, width, news_map, rhorizon=args.rhorizon)
+    r = backtest(hist, args.days, args.lookback, width, news_map, rhorizon=args.rhorizon, drift=drift)
     print(f"{'날짜':<12}{'레짐':<7}{'방향':<5}{'실제%':>7} {'밴드':>16} {'적중':>10}")
     print("─" * 64)
     for x in r["rows"]:
