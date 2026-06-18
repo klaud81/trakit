@@ -27,9 +27,29 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: trakit-frontend
+    # 호스트 포트 미공개 — nginx 프록시가 내부 네트워크로 접근
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: trakit-nginx
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
+      - frontend
       - backend
     logging:
       driver: json-file
