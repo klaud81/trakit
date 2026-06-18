@@ -509,3 +509,57 @@ def handle_command(command_name: str, options: dict = None) -> str:
     except Exception as e:
         logger.error(f"Discord 명령어 처리 실패: {command_name} - {e}")
         return f"❌ 오류: {str(e)}"
+
+
+# ── rq-02 일간 예측 메시지 빌더 ───────────────────────────────────────────────
+_REG_EMOJI = {"상승흐름": "📈", "하락흐름": "📉", "중립": "➡️"}
+
+
+def build_prediction_msg(pred: dict | None = None) -> str:
+    """🔮 사전장 예측 메시지. pred 미지정 시 predict_and_record 로 새로 발행."""
+    from services.prediction_ledger import predict_and_record, scorecard_prompt
+    if pred is None:
+        pred = predict_and_record(use_news=True)
+    if not pred:
+        return "🔮 예측 불가 (데이터 부족)"
+    pc = pred["ref_close"]
+    def _pct(p):
+        return (p - pc) / pc * 100
+    arrow = "🔴상승" if pred["direction"] == "상승" else "🔵하락"
+    reg = _REG_EMOJI.get(pred["regime"], "")
+    lines = [
+        "🔮 **오늘의 TQQQ 예측**",
+        f"┃ 흐름 {reg} **{pred['regime']}** · 방향 **{arrow}**",
+        f"┃ 밴드 **${pred['band_low']:.2f} ~ ${pred['band_high']:.2f}** "
+        f"({_pct(pred['band_low']):+.1f}% ~ {_pct(pred['band_high']):+.1f}%)",
+        f"┃ 기준종가 ${pc:.2f} ({pred['ref_date']}) · 뉴스 bias {pred.get('nasdaq_bias', 0.0):+.2f}",
+    ]
+    if pred.get("inflection"):
+        lines.append(f"┃ ⚡ 변곡: {pred['inflection']}")
+    reasons = pred.get("reasons", []) or []
+    if reasons:
+        lines.append("**근거**")
+        for r in reasons[:3]:
+            lines.append(f"  • {r['factor']} (기여 {r['score']:+.2f})")
+    lines.append(f"_{scorecard_prompt(20)}_")
+    return "\n".join(lines)
+
+
+def build_scoring_msg() -> str:
+    """✅ 장종료 채점 메시지. 미채점 예측을 실측 채점하고 누적성적 요약."""
+    from services.prediction_ledger import score_due, recent_scorecard, scorecard_prompt
+    scored = score_due()
+    if not scored:
+        return f"✅ **예측 채점** — 신규 채점 없음\n_{scorecard_prompt(20)}_"
+    ck = lambda b: "✅" if b else "❌"
+    lines = ["✅ **어제 예측 채점**"]
+    for s in scored[-3:]:  # 최근 채점 최대 3건
+        rev = ""
+        if s.get("reversal_caught") is not None:
+            rev = f" · ⚡변곡 {'포착✅' if s['reversal_caught'] else '놓침❌'}"
+        lines.append(
+            f"┃ {s['date']} 실제 {s['actual_pct']:+.2f}% · "
+            f"방향 {ck(s['direction_hit'])} 흐름 {ck(s['regime_hit'])} 밴드 {ck(s['band_hit'])}{rev}"
+        )
+    lines.append(f"_{scorecard_prompt(20)}_")
+    return "\n".join(lines)

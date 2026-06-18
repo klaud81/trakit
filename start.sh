@@ -55,16 +55,20 @@ uvicorn app:app --reload --port 8000 &
 BACKEND_PID=$!
 echo "   PID: $BACKEND_PID"
 
-# 4. Frontend 실행
-echo "🎨 Frontend 서버 시작 (port 5173)..."
+# 4. Frontend 실행 (0.0.0.0 바인딩 — LAN 내 다른 기기에서 접속 가능)
+echo "🎨 Frontend 서버 시작 (port 5173, host 0.0.0.0)..."
 cd "$SCRIPT_DIR/frontend"
-npm run dev &
+npm run dev -- --host 0.0.0.0 &
 FRONTEND_PID=$!
 echo "   PID: $FRONTEND_PID"
+
+# LAN IP 탐지 (접속 안내용)
+LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "")
 
 echo ""
 echo "✅ TRAKIT 실행 중!"
 echo "   📊 대시보드: http://localhost:5173"
+[ -n "$LAN_IP" ] && echo "   🌐 LAN 접속:  http://$LAN_IP:5173"
 echo "   🔌 API 문서: http://localhost:8000/docs"
 echo ""
 echo "   종료하려면 Ctrl+C 를 누르세요."

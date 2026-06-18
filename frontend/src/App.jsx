@@ -7,13 +7,12 @@ import BandCard from './components/BandCard';
 import TradeTable from './components/TradeTable';
 import SignalPanel from './components/SignalPanel';
 import ProgressCard from './components/ProgressCard';
+import PredictionCard from './components/PredictionCard';
 import EquityChart from './components/EquityChart';
 import ValueLineChart from './components/ValueLineChart';
 import PlanVsActualChart from './components/PlanVsActualChart';
 import Sidebar from './components/Sidebar';
 import NewsPanel from './components/NewsPanel';
-import KrNewsPanel from './components/KrNewsPanel';
-import ViArbPanel from './components/ViArbPanel';
 import KrNightFutureBar from './components/KrNightFutureBar';
 import NewsGate, { isNewsAuthed, logoutNews, getNewsAuthExpiry } from './components/NewsGate';
 
@@ -53,8 +52,6 @@ function calcSellPoints(shares, maxBand, pool, unit = 10, maxPts = 10) {
 function hashToRoute() {
   const h = (window.location.hash || '').replace('#', '');
   if (h === 'news') return 'news';
-  if (h === 'kr-news') return 'kr-news';
-  if (h === 'vi-arb') return 'vi-arb';
   return 'tqqq';
 }
 
@@ -95,7 +92,7 @@ export default function App() {
   const handleNewsLogout = () => {
     logoutNews();
     setNewsAuthedState(false);
-    if (route === 'news' || route === 'kr-news') window.location.hash = 'tqqq';
+    if (route === 'news') window.location.hash = 'tqqq';
   };
 
   const [portfolio, setPortfolio] = useState(null);
@@ -341,19 +338,20 @@ export default function App() {
         {route === 'tqqq' && (
           <>
         <KrNightFutureBar />
+        <PredictionCard />
         <div className="grid-2">
           <PortfolioCard portfolio={portfolio} signal={signal} prevWeek={weekIdx > 0 ? allWeeks[weekIdx - 1] : null} exchangeRate={exchangeRate} tradePoints={tradePoints} />
           <BandCard portfolio={portfolio} />
         </div>
         <SignalPanel signal={signal} livePrice={price} priceRefreshing={priceRefreshing} tradePoints={tradePoints} cycleTrade={portfolio} />
-        <EquityChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
-        <ValueLineChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
-        <PlanVsActualChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
         <div className="grid-2">
           <TradeTable title="매수 포인트 (BUY)" table={tradePoints?.buy_table} type="buy" unitSize={tradePoints?.unit_size} cycleTrade={portfolio} />
           <TradeTable title="매도 포인트 (SELL)" table={tradePoints?.sell_table} type="sell" unitSize={tradePoints?.unit_size} cycleTrade={portfolio} />
         </div>
         <ProgressCard portfolio={portfolio} exchangeRate={exchangeRate} offset={weekIdx - (allWeeks.length - 1)} />
+        <EquityChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
+        <ValueLineChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
+        <PlanVsActualChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
           </>
         )}
         {route === 'news' && (newsAuthed ? (
@@ -364,18 +362,6 @@ export default function App() {
             onCancel={() => { window.location.hash = 'tqqq'; }}
           />
         ))}
-        {route === 'kr-news' && (newsAuthed ? (
-          <>
-            <KrNightFutureBar className="kr-nf-narrow" />
-            <KrNewsPanel />
-          </>
-        ) : (
-          <NewsGate
-            onSuccess={() => setNewsAuthedState(true)}
-            onCancel={() => { window.location.hash = 'tqqq'; }}
-          />
-        ))}
-        {route === 'vi-arb' && <ViArbPanel />}
         {route === 'tqqq' && (
           <div className="sponsor-card">
             <span style={{ fontSize: '22px' }}>☕</span>
