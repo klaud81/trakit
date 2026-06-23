@@ -22,9 +22,28 @@ KST = timezone(timedelta(hours=9))
 
 # KIS API 토큰 캐시 (메모리 + 디스크 영속화)
 # 재시작 후에도 만료 전이면 그대로 재사용 → KIS 의 토큰 발급 SMS 알림 최소화
+# 만료시각은 KST-aware 로 저장/비교 (서버 TZ 가 UTC 여도 어긋나지 않게)
 _kis_token: Optional[str] = None
 _kis_token_expires: Optional[datetime] = None
 _KIS_TOKEN_FILE = DATA_DIR / ".kis_token.json"  # 영속 볼륨에 저장 (Docker 재배포 후에도 유지)
+_KIS_TOKEN_MARGIN = timedelta(minutes=10)        # 만료 10분 전 선제 갱신 (경계 실패 방지)
+
+
+def _as_kst(dt: datetime) -> datetime:
+    """naive datetime 을 KST-aware 로 (구 토큰파일/파싱 호환). aware 면 그대로."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=KST)
+
+
+def _invalidate_kis_token() -> None:
+    """캐시·디스크 토큰 폐기 → 다음 호출에서 재발급 (KIS 가 토큰 무효(EGW001xx) 응답 시)."""
+    global _kis_token, _kis_token_expires
+    _kis_token = None
+    _kis_token_expires = None
+    try:
+        if _KIS_TOKEN_FILE.exists():
+            _KIS_TOKEN_FILE.unlink()
+    except Exception as e:
+        logger.warning(f"KIS 토큰 폐기 실패: {e}")
 
 
 def _load_kis_token_from_disk() -> bool:
@@ -34,12 +53,12 @@ def _load_kis_token_from_disk() -> bool:
         if not _KIS_TOKEN_FILE.exists():
             return False
         data = json.loads(_KIS_TOKEN_FILE.read_text())
-        expires = datetime.fromisoformat(data["expires_at"])
-        if datetime.now() >= expires:
-            return False  # 만료됨
+        expires = _as_kst(datetime.fromisoformat(data["expires_at"]))
+        if datetime.now(KST) >= expires - _KIS_TOKEN_MARGIN:
+            return False  # 만료(임박) → 재발급
         _kis_token = data["token"]
         _kis_token_expires = expires
-        logger.info(f"🔑 KIS 토큰 디스크 로드 (만료: {expires.strftime('%Y-%m-%d %H:%M')})")
+        logger.info(f"🔑 KIS 토큰 디스크 로드 (만료: {expires.strftime('%Y-%m-%d %H:%M %Z')})")
         return True
     except Exception as e:
         logger.warning(f"KIS 토큰 디스크 로드 실패: {e}")
@@ -60,8 +79,8 @@ def _save_kis_token_to_disk(token: str, expires: datetime) -> None:
 def _get_kis_token() -> Optional[str]:
     """KIS API 접근토큰 발급 (24시간 유효, 디스크 캐시)."""
     global _kis_token, _kis_token_expires
-    # 1) 메모리 캐시
-    if _kis_token and _kis_token_expires and datetime.now() < _kis_token_expires:
+    # 1) 메모리 캐시 (만료 10분 전까지 유효)
+    if _kis_token and _kis_token_expires and datetime.now(KST) < _kis_token_expires - _KIS_TOKEN_MARGIN:
         return _kis_token
     # 2) 디스크 캐시
     if _load_kis_token_from_disk():
@@ -80,14 +99,14 @@ def _get_kis_token() -> Optional[str]:
         data = resp.json()
         _kis_token = data["access_token"]
         # KIS 응답에 access_token_token_expired (KST naive) 포함 → 사용. 없으면 23h 후
-        exp_str = data.get("access_token_token_expired")
+        exp_str = data.get("access_token_token_expired")   # KIS 가 KST naive 로 줌
         if exp_str:
             try:
-                _kis_token_expires = datetime.strptime(exp_str, "%Y-%m-%d %H:%M:%S")
+                _kis_token_expires = datetime.strptime(exp_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=KST)
             except ValueError:
-                _kis_token_expires = datetime.now() + timedelta(hours=23)
+                _kis_token_expires = datetime.now(KST) + timedelta(hours=23)
         else:
-            _kis_token_expires = datetime.now() + timedelta(hours=23)
+            _kis_token_expires = datetime.now(KST) + timedelta(hours=23)
         _save_kis_token_to_disk(_kis_token, _kis_token_expires)
         logger.info(f"🔑 KIS 토큰 신규 발급 (만료: {_kis_token_expires.strftime('%Y-%m-%d %H:%M')})")
         return _kis_token
@@ -100,8 +119,11 @@ def _get_kis_token() -> Optional[str]:
 _EXCD_DISCOVERY: dict[str, str] = {}
 
 
-def _fetch_kis_one(symbol: str, excd: str, token: str) -> Optional[dict]:
-    """단일 EXCD 로 KIS 호출."""
+def _fetch_kis_one(symbol: str, excd: str, token: str) -> tuple[Optional[dict], bool]:
+    """단일 EXCD 로 KIS 호출. 반환 (price_dict|None, token_error).
+
+    token_error=True 면 토큰 무효/만료(EGW001xx, HTTP 500) → 호출자가 재발급 후 재시도.
+    """
     from config import KIS_APP_KEY, KIS_APP_SECRET, KIS_BASE_URL
     try:
         resp = requests.get(
@@ -116,14 +138,27 @@ def _fetch_kis_one(symbol: str, excd: str, token: str) -> Optional[dict]:
             params={"AUTH": "", "EXCD": excd, "SYMB": symbol},
             timeout=10,
         )
-        resp.raise_for_status()
-        data = resp.json()
+        # KIS 는 토큰 만료시 HTTP 500 + JSON({rt_cd:1, msg_cd:EGW001xx}) 를 줌 → 본문 먼저 파싱
+        try:
+            data = resp.json()
+        except ValueError:
+            resp.raise_for_status()
+            return None, False
+        msg_cd = str(data.get("msg_cd") or "")
+        msg1 = str(data.get("msg1") or "")
+        if msg_cd.startswith("EGW001") or ("token" in msg1.lower()) or ("토큰" in msg1):
+            logger.warning(f"🔑 KIS 토큰 무효 ({msg_cd}: {msg1.strip()}) → 폐기·재발급")
+            _invalidate_kis_token()
+            return None, True
+        if str(data.get("rt_cd", "0")) not in ("0", "None"):
+            logger.warning(f"KIS 응답 오류 (excd={excd}, {symbol}): {msg_cd} {msg1.strip()}")
+            return None, False
         output = data.get("output", {})
         try:
             price = float(output.get("last") or 0)
             prev_close = float(output.get("base") or 0)
         except (ValueError, TypeError):
-            return None
+            return None, False
         if price > 0 and prev_close > 0:
             change = price - prev_close
             change_pct = change / prev_close * 100
@@ -136,10 +171,10 @@ def _fetch_kis_one(symbol: str, excd: str, token: str) -> Optional[dict]:
                 "day_low": round(float(output.get("low", 0) or 0), 2) or None,
                 "extended": _is_us_extended_session(),
                 "excd": excd,
-            }
+            }, False
     except Exception as e:
         logger.warning(f"KIS API failed (excd={excd}, symbol={symbol}): {e}")
-    return None
+    return None, False
 
 
 def _fetch_kis(symbol: str) -> Optional[dict]:
@@ -148,30 +183,40 @@ def _fetch_kis(symbol: str) -> Optional[dict]:
     1) `EXCHANGE_MAP` 또는 디스커버리 캐시에 있으면 해당 EXCD 로 호출
     2) 없으면 NAS → NYS → AMS 순으로 시도하고, 성공한 EXCD 를 캐시
     실서버에서 사전장/시간외 시간대에도 자동으로 확장된 시간 가격을 반환.
+    토큰 무효(EGW001xx) 응답 시 1회 재발급 후 재시도 (죽은 토큰 고수 방지).
     """
     sym = symbol.upper()
-    token = _get_kis_token()
-    if not token:
-        return None
-
-    excd = EXCHANGE_MAP.get(sym) or _EXCD_DISCOVERY.get(sym)
-    if excd:
-        # KST 데일리장 시간대(10~17시 평일)면 주간 EXCD(BAQ/BAY/BAA) 먼저 시도
-        if _is_kis_daytime_session():
-            daytime_excd = DAYTIME_EXCD.get(excd)
-            if daytime_excd:
-                result = _fetch_kis_one(sym, daytime_excd, token)
+    for attempt in range(2):   # attempt 1: 토큰 무효면 폐기 후 재발급 재시도
+        token = _get_kis_token()
+        if not token:
+            return None
+        excd = EXCHANGE_MAP.get(sym) or _EXCD_DISCOVERY.get(sym)
+        token_error = False
+        if excd:
+            # KST 데일리장 시간대(10~17시 평일)면 주간 EXCD(BAQ/BAY/BAA) 먼저 시도
+            if _is_kis_daytime_session():
+                daytime_excd = DAYTIME_EXCD.get(excd)
+                if daytime_excd:
+                    result, token_error = _fetch_kis_one(sym, daytime_excd, token)
+                    if result:
+                        result["extended"] = True
+                        return result
+            if not token_error:
+                result, token_error = _fetch_kis_one(sym, excd, token)
                 if result:
-                    result["extended"] = True
                     return result
-        return _fetch_kis_one(sym, excd, token)
-
-    for candidate in ("NAS", "NYS", "AMS"):
-        result = _fetch_kis_one(sym, candidate, token)
-        if result:
-            _EXCD_DISCOVERY[sym] = candidate
-            logger.info(f"🔍 KIS EXCD 디스커버리: {sym} → {candidate}")
-            return result
+        else:
+            for candidate in ("NAS", "NYS", "AMS"):
+                result, token_error = _fetch_kis_one(sym, candidate, token)
+                if result:
+                    _EXCD_DISCOVERY[sym] = candidate
+                    logger.info(f"🔍 KIS EXCD 디스커버리: {sym} → {candidate}")
+                    return result
+                if token_error:
+                    break   # 토큰 문제면 다른 EXCD 시도 무의미 → 재발급으로
+        if not (token_error and attempt == 0):
+            return None   # 토큰에러 아니거나 이미 재시도함 → 폴백
+        # 토큰 무효였음 → _invalidate 됨, 루프 재진입해 재발급 후 1회 재시도
     return None
 
 
@@ -335,6 +380,9 @@ def _fetch_yfinance(symbol: str) -> Optional[dict]:
                 "change_pct": round(change_pct, 2),
                 "day_high": round(day_high, 2) if day_high else None,
                 "day_low": round(day_low, 2) if day_low else None,
+                # fast_info.last_price 는 사전장/시간외 체결가 포함 → 확장세션이면 extended
+                # (KIS 실패 폴백 시에도 _(사전장)_/_(시간외)_ 라벨 유지)
+                "extended": _is_us_extended_session(),
             }
     except Exception as e:
         logger.warning(f"yfinance failed: {e}")
