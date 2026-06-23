@@ -3,4 +3,12 @@ __pycache__
 *.pyc
 .omc
 test/
-=0.2.40
+
+# 시크릿·런타임 설정은 이미지에 굽지 않음 — 런타임 env_file(docker-compose) 로 주입.
+# (config.py 의 load_dotenv(override=True) 가 구워진 /app/.env 를 읽어 런타임 env 를
+#  덮어쓰던 문제 방지. .env 가 없으면 load_dotenv 는 no-op → env_file 값이 그대로 적용)
+.env
+.env.*
+*.pem
+.gsa.json
+.kis_token.json
