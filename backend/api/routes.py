@@ -1,4 +1,6 @@
 """API 엔드포인트"""
+import asyncio
+
 from fastapi import APIRouter, Body, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from typing import Optional
@@ -269,73 +271,30 @@ async def visitors():
 
 
 _NEWS_CACHE: dict = {}
-_NEWS_DETAIL_CACHE: dict = {}
-_NEWS_CACHE_MAX = 100  # 캐시 엔트리 상한 (메모리 폭주 방지)
 
-
-def _cache_evict(cache: dict, max_size: int) -> None:
-    """단순 LRU-like: 가장 오래된 엔트리부터 삭제."""
-    while len(cache) > max_size:
-        oldest = min(cache.items(), key=lambda kv: kv[1].get("ts", 0))[0]
-        del cache[oldest]
-
-
-@router.get("/news/detail/{news_id}")
-async def news_detail(news_id: str):
-    """뉴스 상세 (saveticker.com 프록시, 5분 캐시)"""
-    import time
-    import requests as _req
-    now = time.time()
-    entry = _NEWS_DETAIL_CACHE.get(news_id)
-    if entry and now - entry["ts"] < 300:
-        return entry["data"]
-    try:
-        resp = _req.get(f"https://api.saveticker.com/api/news/detail/{news_id}",
-                        timeout=10, headers={"User-Agent": "Mozilla/5.0 (trakit)"})
-        resp.raise_for_status()
-        data = resp.json()
-        _NEWS_DETAIL_CACHE[news_id] = {"ts": now, "data": data}
-        _cache_evict(_NEWS_DETAIL_CACHE, _NEWS_CACHE_MAX)
-        return data
-    except Exception as e:
-        if entry:
-            return entry["data"]
-        raise HTTPException(status_code=502, detail=f"뉴스 상세 로드 실패: {e}")
 
 @router.get("/news")
-async def news(
-    page: int = 1,
-    page_size: int = 30,
-    sources: Optional[str] = None,
-    label_group: Optional[int] = None,
-    label_name: Optional[int] = None,
-    sort: str = "created_at_desc",
-):
-    """뉴스 목록 (saveticker.com 프록시, 60초 캐시, 필터 파라미터 전달)"""
+async def news(topic: str = "market", page: int = 1, page_size: int = 30):
+    """뉴스 목록 (Google News RSS 주제 검색, 주제별 60초 캐시, 서버측 페이지 분할)"""
     import time
-    import requests as _req
-    key = (page, page_size, sources, label_group, label_name, sort)
-    entry = _NEWS_CACHE.get(key)
+    from services.nasdaq_news import NEWS_TOPICS, latest_news
+    if topic not in NEWS_TOPICS:
+        raise HTTPException(status_code=400, detail=f"알 수 없는 topic: {topic}")
+    entry = _NEWS_CACHE.get(topic)
     now = time.time()
     if entry and now - entry["ts"] < 60:
-        return entry["data"]
-    params = {"page": page, "page_size": page_size, "sort": sort}
-    if sources: params["sources"] = sources
-    if label_group is not None: params["label_group"] = label_group
-    if label_name is not None: params["label_name"] = label_name
-    try:
-        url = "https://api.saveticker.com/api/news/list"
-        resp = _req.get(url, params=params, timeout=10,
-                        headers={"User-Agent": "Mozilla/5.0 (trakit)"})
-        resp.raise_for_status()
-        data = resp.json()
-        _NEWS_CACHE[key] = {"ts": now, "data": data}
-        _cache_evict(_NEWS_CACHE, _NEWS_CACHE_MAX)
-        return data
-    except Exception as e:
-        if entry:
-            return entry["data"]
-        raise HTTPException(status_code=502, detail=f"뉴스 로드 실패: {e}")
+        items = entry["items"]
+    else:
+        items = await asyncio.to_thread(latest_news, topic)
+        if items is None:
+            if not entry:
+                raise HTTPException(status_code=502, detail="뉴스 로드 실패")
+            items = entry["items"]  # 실패 시 stale 캐시
+        else:
+            _NEWS_CACHE[topic] = {"ts": now, "items": items}
+    start = (max(page, 1) - 1) * page_size
+    return {"news_list": items[start:start + page_size], "total_count": len(items),
+            "page": page, "page_size": page_size}
 
 
 @router.get("/kr-night-future")

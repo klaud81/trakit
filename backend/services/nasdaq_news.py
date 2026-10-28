@@ -21,6 +21,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import date as _date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 from typing import Literal
@@ -97,6 +98,28 @@ def _clean_title(title: str) -> tuple[str, str]:
     return (head.strip(), src.strip()) if sep else ((title or "").strip(), "")
 
 
+def _fetch_rss(q: str) -> list[dict] | None:
+    """Google News RSS 검색 → [{title, source, id, link, created_at(KST ISO)}]. 실패 시 None."""
+    url = f"{_RSS_URL}?" + urllib.parse.urlencode({"q": q, "hl": "ko", "gl": "KR", "ceid": "KR:ko"})
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=15) as r:
+            root = ET.fromstring(r.read())
+    except Exception as e:
+        logger.warning(f"Google News 검색 실패 ({q[:40]}): {e}")
+        return None
+    out = []
+    for it in root.iter("item"):
+        title, source = _clean_title(it.findtext("title") or "")
+        try:
+            created = parsedate_to_datetime(it.findtext("pubDate") or "").astimezone(KST).isoformat()
+        except (TypeError, ValueError):
+            created = None
+        link = it.findtext("link")
+        out.append({"title": title, "source": source, "id": it.findtext("guid") or link,
+                    "link": link, "created_at": created})
+    return out
+
+
 def _search_rss(query: str, day: str) -> list[dict]:
     """day 하루치 검색 결과 (최대 100건, 관련도순). 실패 시 [].
 
@@ -104,19 +127,26 @@ def _search_rss(query: str, day: str) -> list[dict]:
     사전장 예측(KST 17:00)이 쓰는 day_bias(전일 D) 에는 직전까지의 최신 뉴스가 담긴다.
     """
     d = _date.fromisoformat(day)
-    q = f"{query} after:{d} before:{d + timedelta(days=1)}"
-    url = f"{_RSS_URL}?" + urllib.parse.urlencode({"q": q, "hl": "ko", "gl": "KR", "ceid": "KR:ko"})
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=15) as r:
-            root = ET.fromstring(r.read())
-    except Exception as e:
-        logger.warning(f"Google News 검색 실패 ({day}, {query[:20]}): {e}")
-        return []
-    out = []
-    for it in root.iter("item"):
-        title, source = _clean_title(it.findtext("title") or "")
-        out.append({"title": title, "source": source, "id": it.findtext("guid") or it.findtext("link")})
-    return out
+    return _fetch_rss(f"{query} after:{d} before:{d + timedelta(days=1)}") or []
+
+
+# 뉴스 화면(#news) 주제 탭 → 검색어. 매크로 탭은 예측 수집과 같은 검색어를 쓴다.
+NEWS_TOPICS = {
+    "market": "미국 증시 OR 뉴욕증시 OR 나스닥",
+    "bigtech": " OR ".join(a[0] for a in TOP5_ALIASES.values()),
+    "fed": MACRO_QUERIES["연준"],
+    "indicators": MACRO_QUERIES["경제지표"],
+    "tariff": MACRO_QUERIES["관세"],
+    "war": MACRO_QUERIES["전쟁"],
+}
+
+
+def latest_news(topic: str) -> list[dict] | None:
+    """주제별 최근 2일 뉴스 (최신순, 최대 100건). 실패 시 None."""
+    items = _fetch_rss(f"{NEWS_TOPICS[topic]} when:2d")
+    if items is None:
+        return None
+    return sorted(items, key=lambda h: h["created_at"] or "", reverse=True)
 
 
 def _collect_day(day: str) -> dict:
