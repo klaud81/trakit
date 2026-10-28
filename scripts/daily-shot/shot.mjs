@@ -24,6 +24,12 @@ const OUT = path.join(OUTDIR, `tqqq-${date}.png`);
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 3400 }, deviceScaleFactor: 2 });
+  // #tqqq 비밀번호 게이트(AuthGate)는 sessionStorage 의 만료시각으로 로그인 판정 →
+  // 페이지 스크립트 실행 전에 1시간 세션을 넣어 로그인된 화면을 캡처한다.
+  // 키는 frontend/src/components/AuthGate.jsx 의 STORAGE_KEY 와 같아야 함.
+  await page.addInitScript(() => {
+    sessionStorage.setItem('trakit_news_auth_expiry', String(Date.now() + 60 * 60 * 1000));
+  });
   await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForFunction(
     () => [...document.querySelectorAll('.card-title')].some(t => t.textContent.includes('Goal Progress')),
