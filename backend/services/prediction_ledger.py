@@ -154,7 +154,7 @@ def predict_and_record(date: str | None = None, *, use_news: bool = True,
     pred = pb.predict_core(f, width, news=news, drift=drift)
     inputs = {"mom": f["mom"], "ma5": f["ma5"], "ma20": f["ma20"], "ma50": f["ma50"],
               "rsi": f["rsi"], "vol": f["vol"], "above20": f["above20"],
-              "width": width, "drift": drift}
+              "width": width, "drift": drift, "ref_date": prev["date"]}
     pid = record_prediction(target_date, pred, prev["close"], nasdaq_bias=bias,
                             inputs=inputs, model="sonnet" if news else "price_only")
     out = {**pred, "id": pid, "date": target_date, "ref_close": prev["close"],
@@ -261,7 +261,8 @@ def _row_to_pred(r: sqlite3.Row) -> dict:
     return {"id": r["id"], "date": r["date"], "regime": r["regime"],
             "direction": r["direction"], "band_low": r["band_low"], "band_high": r["band_high"],
             "low_pct": r["low_pct"], "high_pct": r["high_pct"], "ref_close": r["ref_close"],
-            "ref_date": None, "confidence": r["confidence"], "inflection": r["inflection"],
+            "ref_date": json.loads(r["inputs_json"] or "{}").get("ref_date"),
+            "confidence": r["confidence"], "inflection": r["inflection"],
             "nasdaq_bias": r["nasdaq_bias"], "reasons": json.loads(r["reasons_json"] or "[]"),
             "model": r["model"], "created_at": r["created_at"]}
 
