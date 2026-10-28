@@ -32,3 +32,6 @@ data/ticker_graph.haiku-bak-*/
 
 # 일일 스샷 cron 산출/로그
 data/daily-shots/
+
+# Claude Code 개인 설정
+.claude/settings.local.json
