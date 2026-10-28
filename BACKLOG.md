@@ -13,7 +13,7 @@
 | _(예시)_ rq-03-001 | _(대화로 합의 시 채움)_ | 🔲 | — | — | — |
 | rq-02-002 | 뉴스 수집 소스 교체: saveticker(2026-07 폐쇄) → Google News RSS | ✅ | 높음 | `feat/news-google-rss` | — |
 | rq-02-003 | `#news` 화면 Google News RSS 주제 탭으로 교체 (saveticker 프록시 제거) | ✅ | 중간 | `feat/news-page-google` | — |
-| ui-01 | 비밀번호 게이트를 `#news` → `#tqqq` 탭으로 이동 | 🔄 | 중간 | `feat/tqqq-auth-gate` | — |
+| ui-01 | 비밀번호 게이트를 `#news` → `#tqqq` 탭으로 이동 | ✅ | 중간 | `feat/tqqq-auth-gate` | [records/2026-10/ui-01.md](records/2026-10/ui-01.md) |
 
 ## 완료 / 참고
 
