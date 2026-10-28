@@ -532,7 +532,8 @@ def build_prediction_msg(pred: dict | None = None) -> str:
         f"┃ 흐름 {reg} **{pred['regime']}** · 방향 **{arrow}**",
         f"┃ 밴드 **${pred['band_low']:.2f} ~ ${pred['band_high']:.2f}** "
         f"({_pct(pred['band_low']):+.1f}% ~ {_pct(pred['band_high']):+.1f}%)",
-        f"┃ 기준종가 ${pc:.2f} ({pred['ref_date']}) · 뉴스 bias {pred.get('nasdaq_bias', 0.0):+.2f}",
+        f"┃ 기준종가 ${pc:.2f}{f' ({ref})' if (ref := pred.get('ref_date')) else ''}"
+        f" · 뉴스 bias {pred.get('nasdaq_bias', 0.0):+.2f}",
     ]
     if pred.get("inflection"):
         lines.append(f"┃ ⚡ 변곡: {pred['inflection']}")

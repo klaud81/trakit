@@ -4,6 +4,7 @@ pandas==2.2.0
 numpy==1.26.0
 pyarrow>=15.0.0
 requests>=2.31.0
+anthropic>=2.3.0,<3
 pydantic==2.9.0
 python-dotenv==1.0.0
 yfinance>=0.2.40

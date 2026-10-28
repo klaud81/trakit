@@ -8,7 +8,7 @@ saveticker 는 텍스트 검색 API 가 없어(=q/keyword 무시) 제목/본문 
 필터. 한국어 번역 피드라 KR/EN 별칭 모두 매칭. created_at(KST) 로 과거 날짜
 재구성 가능 → 백테스트도 동일 함수로 처리(디스크 캐시).
 
-비용: 하루치 헤드라인을 1콜로 묶어 분석(일당 Gemini 1회). 결과는 디스크 캐시.
+비용: 하루치 헤드라인을 1콜로 묶어 분석(일당 LLM 1회, NEWS_LLM 으로 백엔드 선택). 결과는 디스크 캐시.
 """
 from __future__ import annotations
 
@@ -21,7 +21,12 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from config import GEMINI_API_KEY, GEMINI_MODEL, NEWS_LLM, NEWS_CLAUDE_MODEL
+from typing import Literal
+
+from pydantic import BaseModel
+
+from config import (GEMINI_API_KEY, GEMINI_MODEL, NEWS_LLM, NEWS_CLAUDE_MODEL,
+                    ANTHROPIC_API_KEY, NEWS_CLAUDE_API_MODEL, NEWS_CLAUDE_EFFORT)
 
 logger = logging.getLogger(__name__)
 KST = timezone(timedelta(hours=9))
@@ -170,11 +175,81 @@ def _gemini_json(prompt: str) -> dict:
     raise RuntimeError("Gemini 응답 없음")
 
 
+# claude_api 구조화 출력 스키마 — 프롬프트의 JSON 형식과 동일
+_Judgment = Literal["호재", "악재", "중립"]
+
+
+class _TickerJudgment(BaseModel):
+    ticker: str
+    judgment: _Judgment
+
+
+class _TickerEvent(BaseModel):
+    ticker: str
+    judgment: _Judgment
+    theme: str
+    causal_chain: str
+
+
+class _MacroEvent(BaseModel):
+    category: Literal["전쟁", "관세", "경제지표", "연준"]
+    direction: Literal["상승", "하락"]
+    causal_chain: str
+    title: str
+
+
+class _DayAnalysis(BaseModel):
+    nasdaq_bias: float
+    confidence: Literal["강", "중", "약"]
+    summary: str
+    per_ticker: list[_TickerJudgment]  # 스키마 호환 위해 list 로 받고 dict 로 변환
+    events: list[_TickerEvent]
+    macro_events: list[_MacroEvent]
+
+
+_anthropic_client = None
+
+
+def _claude_api_json(prompt: str) -> dict:
+    """Anthropic Messages API 구조화 출력으로 JSON 응답. 서버(도커)용.
+
+    실패(레이트리밋·네트워크·refusal)는 raise → analyze_day 가 캐시 없이 강등 처리.
+    """
+    global _anthropic_client
+    import anthropic
+    if _anthropic_client is None:
+        _anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=120, max_retries=2)
+    resp = _anthropic_client.messages.parse(
+        model=NEWS_CLAUDE_API_MODEL,
+        max_tokens=16000,
+        output_config={"effort": NEWS_CLAUDE_EFFORT},
+        messages=[{"role": "user", "content": prompt}],
+        output_format=_DayAnalysis,
+    )
+    if resp.stop_reason == "refusal":
+        raise RuntimeError("Claude API refusal")
+    if resp.parsed_output is None:
+        raise RuntimeError(f"Claude API 파싱 실패 (stop_reason={resp.stop_reason})")
+    u = resp.usage
+    logger.info(f"🤖 Claude API {NEWS_CLAUDE_API_MODEL}: in {u.input_tokens} / out {u.output_tokens} tok")
+    out = resp.parsed_output.model_dump()
+    out["per_ticker"] = {t["ticker"]: t["judgment"] for t in out["per_ticker"]}
+    return out
+
+
 def _llm_json(prompt: str) -> dict:
-    """뉴스 분석 LLM 백엔드 디스패치 (NEWS_LLM=gemini|claude_cli)."""
+    """뉴스 분석 LLM 백엔드 디스패치 (NEWS_LLM=gemini|claude_cli|claude_api)."""
     if NEWS_LLM == "claude_cli":
         return _claude_cli_json(prompt)
+    if NEWS_LLM == "claude_api":
+        return _claude_api_json(prompt)
     return _gemini_json(prompt)
+
+
+def _llm_ready() -> bool:
+    """선택된 백엔드의 키가 준비됐는지 (claude_cli 는 로컬 로그인 사용)."""
+    return {"gemini": bool(GEMINI_API_KEY), "claude_api": bool(ANTHROPIC_API_KEY),
+            "claude_cli": True}.get(NEWS_LLM, False)
 
 
 def _gemini_day_analysis(date: str, tickers: list[dict], macros: list[dict]) -> dict:
@@ -232,7 +307,7 @@ def analyze_day(date: str, collected: dict | None = None, use_cache: bool = True
     tickers, macros = collected.get("tickers", []), collected.get("macros", [])
 
     failed = False
-    if (not tickers and not macros) or not GEMINI_API_KEY:
+    if (not tickers and not macros) or not _llm_ready():
         res = {"date": date, "nasdaq_bias": 0.0, "confidence": "약",
                "summary": "헤드라인 없음" if not (tickers or macros) else "API 키 없음",
                "per_ticker": {}, "events": [], "macro_events": [],
@@ -241,7 +316,7 @@ def analyze_day(date: str, collected: dict | None = None, use_cache: bool = True
         try:
             res = {"date": date, **_gemini_day_analysis(date, tickers, macros)}
         except Exception as e:
-            logger.warning(f"analyze_day Gemini 실패 ({date}): {e}")
+            logger.warning(f"analyze_day {NEWS_LLM} 실패 ({date}): {e}")
             failed = True
             res = {"date": date, "nasdaq_bias": 0.0, "confidence": "약",
                    "summary": f"분석 실패: {e}", "per_ticker": {}, "events": [],
