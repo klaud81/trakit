@@ -14,7 +14,7 @@ import PlanVsActualChart from './components/PlanVsActualChart';
 import Sidebar from './components/Sidebar';
 import NewsPanel from './components/NewsPanel';
 import KrNightFutureBar from './components/KrNightFutureBar';
-import NewsGate, { isNewsAuthed, logoutNews, getNewsAuthExpiry } from './components/NewsGate';
+import AuthGate, { isAuthed, logout, getAuthExpiry } from './components/AuthGate';
 
 /** 매수 포인트 계산 — pool이 초기값의 1/2 이하가 되면 중단 */
 function calcBuyPoints(shares, minBand, pool, unit) {
@@ -57,16 +57,16 @@ function hashToRoute() {
 
 export default function App() {
   const [route, setRoute] = useState(hashToRoute());
-  const [newsAuthed, setNewsAuthedState] = useState(isNewsAuthed());
+  const [authed, setAuthedState] = useState(isAuthed());
   useEffect(() => {
     const onHashChange = () => setRoute(hashToRoute());
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // AdSense SDK 는 #tqqq 라우트에서만 로드 (정책: 미러링/로그인 화면 광고 금지)
+  // AdSense SDK 는 로그인 후 #tqqq 라우트에서만 로드 (정책: 미러링/로그인 화면 광고 금지)
   useEffect(() => {
-    if (route !== 'tqqq') return;
+    if (route !== 'tqqq' || !authed) return;
     if (document.querySelector('script[data-adsense]')) return;
     const s = document.createElement('script');
     s.async = true;
@@ -74,26 +74,28 @@ export default function App() {
     s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7976728626582580';
     s.setAttribute('data-adsense', '1');
     document.head.appendChild(s);
-  }, [route]);
+  }, [route, authed]);
 
   // 1시간 세션 만료 자동 체크
   useEffect(() => {
-    if (!newsAuthed) return;
+    if (!authed) return;
     const check = () => {
-      if (!isNewsAuthed()) setNewsAuthedState(false);
+      if (!isAuthed()) setAuthedState(false);
     };
     const id = setInterval(check, 30_000);
-    const expiry = getNewsAuthExpiry();
+    const expiry = getAuthExpiry();
     const ms = Math.max(1000, expiry - Date.now());
     const timeout = setTimeout(check, ms);
     return () => { clearInterval(id); clearTimeout(timeout); };
-  }, [newsAuthed]);
+  }, [authed]);
 
-  const handleNewsLogout = () => {
-    logoutNews();
-    setNewsAuthedState(false);
-    if (route === 'news') window.location.hash = 'tqqq';
+  const handleLogout = () => {
+    logout();
+    setAuthedState(false);
   };
+
+  // TQQQ 탭만 비밀번호 게이트 (뉴스는 공개)
+  const tqqqOpen = route === 'tqqq' && authed;
 
   const [portfolio, setPortfolio] = useState(null);
   const [signal, setSignal] = useState(null);
@@ -319,9 +321,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar newsAuthed={newsAuthed} onNewsLogout={handleNewsLogout} />
+      <Sidebar authed={authed} onLogout={handleLogout} />
       <div className="app-content">
-        {route === 'tqqq' && (
+        {tqqqOpen && (
           <Header
             portfolio={portfolio}
             weekIdx={weekIdx} totalWeeks={allWeeks.length}
@@ -335,7 +337,13 @@ export default function App() {
             {error} — 데모 데이터로 표시합니다.
           </div>
         )}
-        {route === 'tqqq' && (
+        {route === 'tqqq' && !authed && (
+          <AuthGate
+            onSuccess={() => setAuthedState(true)}
+            onCancel={() => { window.location.hash = 'news'; }}
+          />
+        )}
+        {tqqqOpen && (
           <>
         <KrNightFutureBar />
         <PredictionCard />
@@ -354,15 +362,8 @@ export default function App() {
         <PlanVsActualChart history={history} currentWeek={allWeeks[weekIdx]?.week_num} />
           </>
         )}
-        {route === 'news' && (newsAuthed ? (
-          <NewsPanel />
-        ) : (
-          <NewsGate
-            onSuccess={() => setNewsAuthedState(true)}
-            onCancel={() => { window.location.hash = 'tqqq'; }}
-          />
-        ))}
-        {route === 'tqqq' && (
+        {route === 'news' && <NewsPanel />}
+        {tqqqOpen && (
           <div className="sponsor-card">
             <span style={{ fontSize: '22px' }}>☕</span>
             <div className="sponsor-card-text">
