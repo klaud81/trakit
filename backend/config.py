@@ -92,9 +92,13 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")  # 무료 tier 권�
 # 뉴스 분석 LLM 백엔드 분기:
 #   NEWS_LLM=gemini      → Gemini API (GEMINI_MODEL)
 #   NEWS_LLM=claude_cli  → claude CLI 헤드리스 (NEWS_CLAUDE_MODEL: haiku|sonnet|opus)
-# Gemini 무료 쿼터 소진 시 claude_cli 로 우회 가능
+#   NEWS_LLM=claude_api  → Anthropic Messages API (ANTHROPIC_API_KEY, NEWS_CLAUDE_API_MODEL)
+# Gemini 무료 쿼터 소진 시 claude_cli(로컬)/claude_api(서버) 로 우회 가능
 NEWS_LLM = os.getenv("NEWS_LLM", "gemini").lower()
 NEWS_CLAUDE_MODEL = os.getenv("NEWS_CLAUDE_MODEL", "sonnet")  # 최신: haiku|sonnet(4.6)|opus(4.8)
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+NEWS_CLAUDE_API_MODEL = os.getenv("NEWS_CLAUDE_API_MODEL", "claude-sonnet-5")
+NEWS_CLAUDE_EFFORT = os.getenv("NEWS_CLAUDE_EFFORT", "medium")  # low|medium|high
 NAVER_CLIENT_ID = os.getenv("NAVER_CLIENT_ID", "")
 NAVER_CLIENT_SECRET = os.getenv("NAVER_CLIENT_SECRET", "")
 
