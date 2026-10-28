@@ -78,9 +78,10 @@ cd backend && python -m pytest test/ -v
 - NewsDetailModal: 뉴스 행 클릭 → `/api/news/detail/{id}` 조회 → 모달 표시. 닫기: ✕ / 배경 클릭 / Escape. 본문은 `content[]` 의 text 블록을 `\n` 기준으로 단락 분할
 
 ### TQQQ 일간 예측 (rq-02, prediction)
-- 핵심 파일: `scripts/predict_backtest.py` (결정론 코어 `predict_core`·백테스트·캘리브레이션), `services/prediction_ledger.py` (SQLite `data/prediction.db` 발행/채점/누적성적), `services/nasdaq_news.py` (saveticker 수집+LLM bias), `services/ticker_graph.py` (지식그래프), FE `components/PredictionCard.jsx`. 요구사항: `rq-02-001.md`
+- 핵심 파일: `scripts/predict_backtest.py` (결정론 코어 `predict_core`·백테스트·캘리브레이션), `services/prediction_ledger.py` (SQLite `data/prediction.db` 발행/채점/누적성적), `services/nasdaq_news.py` (Google News RSS 수집+LLM bias), `services/ticker_graph.py` (지식그래프), FE `components/PredictionCard.jsx`. 요구사항: `rq-02-001.md`
 - 예측 3종: **흐름(레짐)** 다일추세 / **방향** 1일모멘텀 / **밴드** P20~P80 등락폭. 색상: 상승=빨강(--sell), 하락=파랑(--buy)
-- 뉴스 bias 는 saveticker → `day_bias(D-1)` (캐시 미스 시 라이브 수집·분석·캐시). 모델은 `.env NEWS_LLM=claude_cli/NEWS_CLAUDE_MODEL=sonnet` (재빌드 캐시와 일관)
+- 뉴스 bias 는 Google News RSS(한국어, `after:D before:D+1` = PT 하루 = KST D 16:00~D+1 16:00) → `day_bias(D-1)` (캐시 미스 시 라이브 수집·분석·캐시, 헤드라인 0건 캐시는 재수집). 티커 8건·매크로 카테고리 5건/일 상한. saveticker list API 는 2026-07 개편 후 사용 불가
+- 뉴스 LLM: 서버 `.env NEWS_LLM=claude_api` (Anthropic API, `NEWS_CLAUDE_API_MODEL=claude-sonnet-5`), 로컬은 `claude_cli`/sonnet 가능. 플랜: `docs/plan-news-claude-api.md`
 - **`INFLECT_TH=0.5`**: 뉴스 변곡 임계. 스윕 결과 임계↑일수록 방향적중↑(변곡 플립은 대부분 오답) → 뉴스는 방향플립보다 설명/이벤트 레이어 위주. 가격전용 vs +뉴스 A/B: 방향적중 동률(62.5%)
 - **밴드 드리프트 보정**: `predict_core(drift)` + `calibrate_joint`(width=커버리지 / drift=폭편향, 거의 직교라 교대최적화). 폭편향 +0.72→−0.01%p
 - ledger: `predict_and_record` 발행(date 중복 덮어씀) → `score_due` 다음날 KIS 실측 채점 → `recent_scorecard`/`scorecard_prompt` 누적성적(피드백-인-컨텍스트용)

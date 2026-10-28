@@ -1,12 +1,12 @@
-"""나스닥 시총 상위 5개 종목 뉴스 → Gemini bias.
+"""나스닥 시총 상위 5개 종목 + 매크로 뉴스 → LLM bias.
 
 TQQQ 는 나스닥100 3배. 지수는 시총 상위 메가캡이 좌우하므로, 상위 5개 종목
-(NVDA·AAPL·MSFT·GOOGL·AMZN) 관련 뉴스를 saveticker 아카이브에서 모아
-Gemini 로 호재/악재를 판단, 다음 거래일 나스닥 방향 bias(-1.0~+1.0) 를 산출한다.
+(NVDA·AAPL·MSFT·GOOGL·AMZN) 관련 뉴스와 공통 매크로(전쟁·관세·경제지표·연준)
+뉴스를 모아 LLM 으로 호재/악재를 판단, 다음 거래일 나스닥 방향 bias(-1.0~+1.0) 를 산출한다.
 
-saveticker 는 텍스트 검색 API 가 없어(=q/keyword 무시) 제목/본문 이름매칭으로
-필터. 한국어 번역 피드라 KR/EN 별칭 모두 매칭. created_at(KST) 로 과거 날짜
-재구성 가능 → 백테스트도 동일 함수로 처리(디스크 캐시).
+뉴스 소스: Google News RSS 검색(한국어, 키 불필요). `after:`/`before:` 날짜 연산자로
+과거 날짜도 재구성 가능 → 백테스트도 동일 함수로 처리(디스크 캐시).
+(기존 saveticker list API 는 2026-07 서비스 개편 후 안내글 1건만 반환 → 교체)
 
 비용: 하루치 헤드라인을 1콜로 묶어 분석(일당 LLM 1회, NEWS_LLM 으로 백엔드 선택). 결과는 디스크 캐시.
 """
@@ -17,8 +17,10 @@ import logging
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+import xml.etree.ElementTree as ET
+from datetime import date as _date, datetime, timedelta, timezone
 from pathlib import Path
 
 from typing import Literal
@@ -52,8 +54,21 @@ MACRO_ALIASES = {
              "통화정책", "긴축", "완화"],
 }
 
+# Google News 검색어 — 티커는 TOP5_ALIASES 첫 두 별칭(KR/EN)으로 검색 후 제목 별칭으로 재확인,
+# 매크로는 카테고리별 대표 키워드로 검색 (MACRO_ALIASES 는 분류 규칙으로 유지).
+MACRO_QUERIES = {
+    "전쟁": "전쟁 OR 지정학 OR 중동 OR 우크라이나 증시",
+    "관세": "관세 OR 무역협상 OR 무역전쟁 미국",
+    "경제지표": "미국 CPI OR PPI OR PCE OR 고용지표 OR GDP OR 소매판매",
+    "연준": "연준 OR FOMC OR 기준금리 OR 파월",
+}
+# 매크로 검색은 동음이의(예: 인물명 '연준')가 섞이므로 시장 맥락 단어가 있는 제목만 채택
+_MARKET_WORDS = ("증시", "주가", "주식", "나스닥", "S&P", "다우", "뉴욕", "금리", "채권", "국채",
+                 "달러", "환율", "물가", "인플레", "경제", "경기", "시장", "미국", "美", "연준", "Fed",
+                 "FOMC", "관세", "무역", "유가", "지표", "고용")
+
 _UA = {"User-Agent": "Mozilla/5.0 (trakit)"}
-_LIST_URL = "https://api.saveticker.com/api/news/list"
+_RSS_URL = "https://news.google.com/rss/search"
 _CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "news_bias_cache"
 
 
@@ -71,57 +86,83 @@ def _match_macro(text: str) -> str | None:
     return None
 
 
-def _fetch_page(page: int, page_size: int = 100) -> list[dict]:
-    url = f"{_LIST_URL}?page={page}&page_size={page_size}&sort=created_at_desc"
+_MACRO_CAP_PER_CAT = 5   # 일·카테고리당 매크로 헤드라인 상한 (LLM 입력 바운드)
+_TICKER_CAP_PER_DAY = 8  # 일·티커당 헤드라인 상한 (LLM 입력 바운드)
+_RSS_SLEEP = 0.5         # 검색 요청 간격 (Google News 레이트리밋 회피)
+
+
+def _clean_title(title: str) -> tuple[str, str]:
+    """Google News 제목 'XXX - 언론사' → (제목, 언론사)."""
+    head, sep, src = (title or "").rpartition(" - ")
+    return (head.strip(), src.strip()) if sep else ((title or "").strip(), "")
+
+
+def _search_rss(query: str, day: str) -> list[dict]:
+    """day 하루치 검색 결과 (최대 100건, 관련도순). 실패 시 [].
+
+    Google 의 `after:D before:D+1` 은 미국 태평양시(PT) 하루 = KST D 16:00 ~ D+1 16:00.
+    사전장 예측(KST 17:00)이 쓰는 day_bias(전일 D) 에는 직전까지의 최신 뉴스가 담긴다.
+    """
+    d = _date.fromisoformat(day)
+    q = f"{query} after:{d} before:{d + timedelta(days=1)}"
+    url = f"{_RSS_URL}?" + urllib.parse.urlencode({"q": q, "hl": "ko", "gl": "KR", "ceid": "KR:ko"})
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=15) as r:
-            return json.load(r).get("news_list", []) or []
+            root = ET.fromstring(r.read())
     except Exception as e:
-        logger.warning(f"saveticker page {page} 실패: {e}")
+        logger.warning(f"Google News 검색 실패 ({day}, {query[:20]}): {e}")
         return []
+    out = []
+    for it in root.iter("item"):
+        title, source = _clean_title(it.findtext("title") or "")
+        out.append({"title": title, "source": source, "id": it.findtext("guid") or it.findtext("link")})
+    return out
 
 
-_MACRO_CAP_PER_CAT = 5   # 일·카테고리당 매크로 헤드라인 상한 (Gemini 입력 바운드)
-_LEAD_CAP = 200          # 헤드라인별 리드 스니펫 길이 (제목+리드로 본문 맥락 보강)
+def _collect_day(day: str) -> dict:
+    """하루치 티커+매크로 헤드라인. 제목 중복 제거, 티커 매칭 우선(기존 규칙 유지)."""
+    b: dict = {"tickers": [], "macros": []}
+    seen: set[str] = set()
+    for tk, aliases in TOP5_ALIASES.items():
+        n = 0
+        for h in _search_rss(" OR ".join(aliases[:2]), day):
+            if n >= _TICKER_CAP_PER_DAY:
+                break
+            if h["title"] in seen or _match_ticker(h["title"]) != tk:
+                continue
+            seen.add(h["title"])
+            b["tickers"].append({"ticker": tk, "title": h["title"], "lead": h["source"], "id": h["id"]})
+            n += 1
+        time.sleep(_RSS_SLEEP)
+    for cat, query in MACRO_QUERIES.items():
+        n = 0
+        for h in _search_rss(query, day):
+            if n >= _MACRO_CAP_PER_CAT:
+                break
+            t = h["title"]
+            if t in seen or _match_ticker(t) or _match_macro(t) != cat \
+                    or not any(w in t for w in _MARKET_WORDS if w not in MACRO_ALIASES[cat]):
+                continue
+            seen.add(h["title"])
+            b["macros"].append({"category": cat, "title": h["title"], "lead": h["source"], "id": h["id"]})
+            n += 1
+        time.sleep(_RSS_SLEEP)
+    return b
 
 
-def collect_by_date(start_date: str, max_pages: int = 1200) -> dict:
-    """단일 패스로 start_date 이후 전 기간을 날짜별 버킷팅 (티커+매크로).
+def collect_by_date(start_date: str, end_date: str | None = None) -> dict:
+    """start_date~end_date(기본 오늘 KST) 날짜별 헤드라인 버킷 (티커+매크로). 날짜 경계는 _search_rss 참고.
 
-    60일을 매일 page1부터 재수집하는 낭비 방지. created_at_desc 로 거슬러
-    올라가며 start_date 미만이면 종료.
-    반환: {date: {"tickers":[{ticker,title,id}], "macros":[{category,title,id}]}}
+    주말 뉴스도 다음 거래일 재료가 될 수 있어 모든 날짜를 수집한다.
+    반환: {date: {"tickers":[{ticker,title,lead,id}], "macros":[{category,title,lead,id}]}}
+    lead 는 언론사명 (RSS 는 본문 요약을 주지 않음).
     """
+    end = _date.fromisoformat(end_date) if end_date else datetime.now(KST).date()
+    d = _date.fromisoformat(start_date)
     buckets: dict = {}
-    macro_cnt: dict = {}
-    page = 1
-    while page <= max_pages:
-        items = _fetch_page(page)
-        if not items:
-            break
-        page_dates = [it["created_at"][:10] for it in items]
-        for it in items:
-            d = it["created_at"][:10]
-            if d < start_date:
-                continue
-            text = (it.get("title", "") or "") + " " + (it.get("content", "") or "")
-            b = buckets.setdefault(d, {"tickers": [], "macros": []})
-            lead = (it.get("content", "") or "").replace("\n", " ").strip()[:_LEAD_CAP]
-            tk = _match_ticker(text)
-            if tk:
-                b["tickers"].append({"ticker": tk, "title": it.get("title", ""),
-                                     "lead": lead, "id": it.get("id")})
-                continue
-            cat = _match_macro(text)
-            if cat:
-                key = (d, cat)
-                if macro_cnt.get(key, 0) < _MACRO_CAP_PER_CAT:
-                    macro_cnt[key] = macro_cnt.get(key, 0) + 1
-                    b["macros"].append({"category": cat, "title": it.get("title", ""),
-                                        "lead": lead, "id": it.get("id")})
-        if min(page_dates) < start_date:
-            break
-        page += 1
+    while d <= end:
+        buckets[d.isoformat()] = _collect_day(d.isoformat())
+        d += timedelta(days=1)
     return buckets
 
 
@@ -298,12 +339,15 @@ def analyze_day(date: str, collected: dict | None = None, use_cache: bool = True
     cache = _CACHE_DIR / f"{date}.json"
     if use_cache and cache.exists():
         try:
-            return json.loads(cache.read_text(encoding="utf-8"))
+            cached = json.loads(cache.read_text(encoding="utf-8"))
+            # 헤드라인 0건 캐시는 재수집 (saveticker 폐쇄 기간·수집 실패분 복구)
+            if cached.get("n_headlines", 0) > 0:
+                return cached
         except json.JSONDecodeError:
             pass
 
     if collected is None:
-        collected = collect_by_date(date).get(date, {"tickers": [], "macros": []})
+        collected = _collect_day(date)
     tickers, macros = collected.get("tickers", []), collected.get("macros", [])
 
     failed = False
@@ -331,7 +375,7 @@ def build_range(dates: list[str], use_cache: bool = True) -> dict:
     """여러 날짜를 단일 수집 패스로 분석·그래프 구축. 반환: {date: 분석 dict 전체}."""
     start = min(dates)
     logger.info(f"📰 뉴스 수집 단일패스 (since {start}) …")
-    buckets = collect_by_date(start)
+    buckets = collect_by_date(start, max(dates))
     out = {}
     for idx, d in enumerate(sorted(dates)):
         if idx > 0 and NEWS_LLM == "gemini":
