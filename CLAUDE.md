@@ -47,8 +47,7 @@ cd backend && python -m pytest test/ -v
 - 환율: `exchange_rate_service.py` — 외부 API 조회, KST 17시 이후 하루 1회 갱신 캐시
 - `chartPreviousClose`는 분할 조정값이므로 사용 금지. `previousClose` 또는 `closes[-2]` 사용
 - 날짜 필터링: 시작일이 오늘 이후인 미래 데이터 자동 제외 (`_filter_by_date`)
-- 뉴스 프록시: `/api/news`, `/api/news/detail/{id}` — `api.saveticker.com/api/news/list|detail` 을 서버측에서 호출 (브라우저 직접 호출 시 CORS 차단됨). 목록 60초 / 상세 5분 메모리 캐시. 실패 시 stale 캐시 반환
-- saveticker 필터 파라미터: `label_group` (2=SAVE, 3=로이터, 4=파이낸셜뉴스), `label_name` (SAVE 하위: 1=전체, 2=종합, 3=속보, 4=정보, 5=분석, 6=암호화폐, 7=경제지표, 8=에너지, 9=연준, 10=일정, 11=투자의견), `sort=created_at_desc`
+- 뉴스 목록: `/api/news?topic=` — Google News RSS 주제 검색(`nasdaq_news.NEWS_TOPICS`: market/bigtech/fed/indicators/tariff/war, 최근 2일·최신순·최대 100건). 주제별 60초 메모리 캐시, 서버측 페이지 분할, 실패 시 stale 캐시. (saveticker 프록시는 2026-07 개편으로 제거)
 - `goal_service.py`: 시트 raw CSV 에서 "계획" 컬럼(끝에서 3번째)을 읽어 week_num→planned 맵을 5분 캐시. 시트 마지막 주차 이후는 `(V_prev+200) × ratio` 로 560주차까지 연장. `compute_goal_status(week_num, actual)` 가 계획대비 %, 시간차, 남은 횟수/년수 계산해 dict 반환 → `/api/goal` 과 Discord `/goal` 이 공유
 - 시트의 `구매` 컬럼(T열)은 이번 회차에 체결된 가격을 **`|` 구분** 리스트로 기록 (예: `"63.83 | 64.12"`). `data_loader` 가 string 보존 → `portfolio_service._parse_executed_prices()` 가 파싱 → `/api/portfolio` 와 `/api/portfolio/history` 의 `executed_prices` 필드로 노출. `trade_amount` 부호로 매수/매도 방향 판별 (양수=매도, 음수=매수)
 - 시트의 `pool 소비률` 컬럼(AN열, idx 39)은 매수 시 pool 의 몇 % 까지 사용할지 (예: 0.4 = 40%). NA / 0 이면 기본 0.5. `portfolio.consumption_rate` 노출, `rebalancing_engine.calculate_buy_points` 가 사용
@@ -74,8 +73,8 @@ cd backend && python -m pytest test/ -v
 - Discord 명령어: `/help`, `/price`, `/quote symbol:`, `/signal [offset]`, `/portfolio [offset]`, `/goal [offset]`, `/trade` (매수/매도 tier 테이블, 체결가 ✓), `/watch`, `/rate`, `/refresh`. 모두 서버 시작 시 자동 등록 (`register_slash_commands`), 강제 재등록은 `POST /api/discord/register`
 - 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
 - 뉴스 라우트(`#news`)에서는 Header / 후원하기 카드 숨김, 방문자 통계는 모든 라우트에 표시
-- NewsPanel 필터: SOURCE_TABS (전체/SAVE/로이터/파이낸셜뉴스) 는 서버측 `label_group` 파라미터로 refetch. CATEGORIES_BY_TAB 은 클라이언트측 `tag_names` 필터 (전체 tab의 '분석' pill은 `분석` OR `시황/분석` 매칭). SAVE_CATEGORIES 는 서버측 `label_name` 파라미터로 refetch
-- NewsDetailModal: 뉴스 행 클릭 → `/api/news/detail/{id}` 조회 → 모달 표시. 닫기: ✕ / 배경 클릭 / Escape. 본문은 `content[]` 의 text 블록을 `\n` 기준으로 단락 분할
+- NewsPanel: 주제 탭(TOPIC_TABS, 백엔드 `NEWS_TOPICS` 키와 동일) → `/api/news?topic=` refetch. 검색창은 클라이언트측 제목 필터
+- 뉴스 행 클릭 → 원문 기사 새 탭 (RSS 는 본문 미제공이라 상세 모달 없음)
 
 ### TQQQ 일간 예측 (rq-02, prediction)
 - 핵심 파일: `scripts/predict_backtest.py` (결정론 코어 `predict_core`·백테스트·캘리브레이션), `services/prediction_ledger.py` (SQLite `data/prediction.db` 발행/채점/누적성적), `services/nasdaq_news.py` (Google News RSS 수집+LLM bias), `services/ticker_graph.py` (지식그래프), FE `components/PredictionCard.jsx`. 요구사항: `rq-02-001.md`
@@ -120,8 +119,7 @@ cd backend && python -m pytest test/ -v
 | GET | `/api/goal` | 목표 진행률 + 계획대비 + 시간차 (`?offset=0` 현재 라이브, `<0` 시트 V+pool) |
 | GET | `/api/prediction` | TQQQ 일간 예측 (흐름·방향·밴드·근거·bias) + 누적성적 + 이력. `?refresh=1` 새 발행(뉴스 LLM) |
 | POST | `/api/discord/register` | Discord 슬래시 명령어 강제 재등록 (수동 트리거) |
-| GET | `/api/news` | 뉴스 목록 프록시 (saveticker, 60초 캐시). 파라미터: `page`, `page_size`, `label_group`, `label_name`, `sort` |
-| GET | `/api/news/detail/{id}` | 뉴스 상세 프록시 (saveticker, 5분 캐시) |
+| GET | `/api/news` | 뉴스 목록 (Google News RSS, 주제별 60초 캐시). 파라미터: `topic`(market/bigtech/fed/indicators/tariff/war), `page`, `page_size` |
 
 상세: [docs/api-spec.md](docs/api-spec.md)
 

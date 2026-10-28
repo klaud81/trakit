@@ -51,7 +51,7 @@ def test_search_rss_window_and_title_split(fake_rss):
     feeds["엔비디아"] = ["엔비디아, 신고가 경신 - 연합뉴스", "제목에 하이픈-없음"]
     out = nn._search_rss("엔비디아 OR Nvidia", "2026-10-27")
     assert calls[0].endswith("after:2026-10-27 before:2026-10-28")
-    assert out[0] == {"title": "엔비디아, 신고가 경신", "source": "연합뉴스", "id": "g0"}
+    assert (out[0]["title"], out[0]["source"], out[0]["id"]) == ("엔비디아, 신고가 경신", "연합뉴스", "g0")
     assert out[1]["title"] == "제목에 하이픈-없음" and out[1]["source"] == ""
 
 
@@ -83,3 +83,32 @@ def test_search_rss_failure_returns_empty(monkeypatch):
         raise OSError("network down")
     monkeypatch.setattr(nn.urllib.request, "urlopen", boom)
     assert nn._search_rss("엔비디아", "2026-10-27") == []
+
+
+def test_fetch_rss_created_at_kst(fake_rss):
+    feeds, _ = fake_rss
+    feeds["미국"] = ["뉴욕증시 마감 - 연합뉴스"]
+    out = nn._fetch_rss("미국 증시 when:2d")
+    assert out[0]["created_at"] == "2026-10-27T18:00:00+09:00"
+
+
+class TestNewsRoute:
+    ITEMS = [{"id": f"g{i}", "title": f"t{i}", "source": "s", "link": "l",
+              "created_at": "2026-10-27T18:00:00+09:00"} for i in range(45)]
+
+    @pytest.fixture(autouse=True)
+    def _reset_cache(self, monkeypatch):
+        import api.routes as routes
+        monkeypatch.setattr(routes, "_NEWS_CACHE", {})
+
+    def test_paging(self, client, monkeypatch):
+        monkeypatch.setattr(nn, "latest_news", lambda topic: self.ITEMS)
+        r = client.get("/api/news?topic=fed&page=2&page_size=30").json()
+        assert r["total_count"] == 45 and [n["id"] for n in r["news_list"]] == [f"g{i}" for i in range(30, 45)]
+
+    def test_unknown_topic(self, client):
+        assert client.get("/api/news?topic=nope").status_code == 400
+
+    def test_failure_without_cache(self, client, monkeypatch):
+        monkeypatch.setattr(nn, "latest_news", lambda topic: None)
+        assert client.get("/api/news?topic=market").status_code == 502
