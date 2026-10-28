@@ -103,6 +103,8 @@ DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL", "")
 DISCORD_APP_ID = os.getenv("DISCORD_APP_ID", "")
 DISCORD_PUBLIC_KEY = os.getenv("DISCORD_PUBLIC_KEY", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+# 웹훅 외에 봇으로 함께 푸시할 채널 ID (쉼표 구분)
+DISCORD_PUSH_CHANNEL_IDS = [c.strip() for c in os.getenv("DISCORD_PUSH_CHANNEL_IDS", "").split(",") if c.strip()]
 
 # API 설정
 API_HOST = os.getenv("TRAKIT_HOST", "0.0.0.0")

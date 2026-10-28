@@ -1,11 +1,14 @@
 // TQQQ 대시보드 일일 스샷 → Discord 전송.
 // :5173/#tqqq 를 Goal Progress 카드까지 클립 캡처 → data/daily-shots/tqqq-YYYY-MM-DD.png 저장 → 웹훅 첨부.
-// env: PW_PKG(전역 playwright index.js), DISCORD_WEBHOOK_URL, SHOT_URL?, SHOT_DIR?
+// env: PW_PKG(전역 playwright index.js), DISCORD_WEBHOOK_URL, DISCORD_BOT_TOKEN?, DISCORD_PUSH_CHANNEL_IDS?, SHOT_URL?, SHOT_DIR?
 import fs from 'node:fs';
 import path from 'node:path';
 
 const PW = process.env.PW_PKG;
 const WEBHOOK = process.env.DISCORD_WEBHOOK_URL || '';
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || '';
+// 웹훅 외에 봇으로 함께 푸시할 채널 ID (쉼표 구분)
+const CHANNEL_IDS = (process.env.DISCORD_PUSH_CHANNEL_IDS || '').split(',').map(s => s.trim()).filter(Boolean);
 const URL = process.env.SHOT_URL || 'http://localhost:5173/#tqqq';
 const OUTDIR = process.env.SHOT_DIR || 'data/daily-shots';
 
@@ -40,9 +43,22 @@ try {
 
 if (!WEBHOOK) { console.error('❌ DISCORD_WEBHOOK_URL 미설정 — 전송 스킵'); process.exit(1); }
 const buf = fs.readFileSync(OUT);
-const fd = new FormData();
-fd.append('payload_json', JSON.stringify({ username: 'TRAKIT', content: `📊 ${date} TQQQ 대시보드 — 시그널·매수/매도·Goal` }));
-fd.append('file', new Blob([buf], { type: 'image/png' }), `tqqq-${date}.png`);
-const r = await fetch(WEBHOOK, { method: 'POST', body: fd, headers: { 'User-Agent': 'TRAKIT/1.0' } });
+const content = `📊 ${date} TQQQ 대시보드 — 시그널·매수/매도·Goal`;
+const form = (payload) => {
+  const fd = new FormData();
+  fd.append('payload_json', JSON.stringify(payload));
+  fd.append('files[0]', new Blob([buf], { type: 'image/png' }), `tqqq-${date}.png`);
+  return fd;
+};
+const r = await fetch(WEBHOOK, { method: 'POST', body: form({ username: 'TRAKIT', content }), headers: { 'User-Agent': 'TRAKIT/1.0' } });
 console.log('📨 discord', r.status);
 if (!(r.status === 200 || r.status === 204)) { console.error(await r.text()); process.exit(1); }
+
+for (const ch of BOT_TOKEN ? CHANNEL_IDS : []) {
+  const rc = await fetch(`https://discord.com/api/v10/channels/${ch}/messages`, {
+    method: 'POST', body: form({ content }),
+    headers: { 'User-Agent': 'TRAKIT/1.0', Authorization: `Bot ${BOT_TOKEN}` },
+  });
+  console.log(`📨 discord channel ${ch}`, rc.status);
+  if (rc.status !== 200) console.error(await rc.text());
+}

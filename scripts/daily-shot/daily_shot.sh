@@ -11,9 +11,11 @@ cd "$ROOT"
 # launchd 최소 PATH 보정 (node/npm/playwright 탐색)
 export PATH="$HOME/.nvm/versions/node/v18.20.8/bin:/usr/local/bin:/usr/bin:/bin"
 
-# 웹훅: backend/.env 에서 로드 (커밋 안 됨)
+# 웹훅·봇 채널: backend/.env 에서 로드 (커밋 안 됨)
 if [ -f backend/.env ]; then
-  export DISCORD_WEBHOOK_URL="$(grep -E '^DISCORD_WEBHOOK_URL=' backend/.env | head -1 | cut -d= -f2- | tr -d '"'"'"' ')"
+  for k in DISCORD_WEBHOOK_URL DISCORD_BOT_TOKEN DISCORD_PUSH_CHANNEL_IDS; do
+    export "$k=$(grep -E "^$k=" backend/.env | head -1 | cut -d= -f2- | tr -d '"'"'"' ')"
+  done
 fi
 # 전역 playwright index.js (ESM 디렉토리 import 불가 → 파일 경로)
 export PW_PKG="$(npm root -g 2>/dev/null)/playwright/index.js"
