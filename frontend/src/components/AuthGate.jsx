@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 
+// scripts/daily-shot/shot.mjs 가 같은 키로 캡처용 세션을 넣으므로 바꿀 때 함께 수정
 const STORAGE_KEY = 'trakit_news_auth_expiry';
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1시간
 
