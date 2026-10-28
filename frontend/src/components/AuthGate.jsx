@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react';
 const STORAGE_KEY = 'trakit_news_auth_expiry';
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1시간
 
-export function isNewsAuthed() {
+export function isAuthed() {
   try {
     const exp = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10);
     if (!exp) return false;
@@ -17,22 +17,23 @@ export function isNewsAuthed() {
   }
 }
 
-export function setNewsAuthed() {
+export function setAuthed() {
   try { sessionStorage.setItem(STORAGE_KEY, String(Date.now() + SESSION_TTL_MS)); } catch {}
 }
 
-export function logoutNews() {
+export function logout() {
   try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
 }
 
-export function getNewsAuthExpiry() {
+export function getAuthExpiry() {
   try {
     const exp = parseInt(sessionStorage.getItem(STORAGE_KEY) || '0', 10);
     return exp || 0;
   } catch { return 0; }
 }
 
-export default function NewsGate({ onSuccess, onCancel }) {
+// TQQQ 탭 비밀번호 게이트 (검증은 백엔드 /api/news/auth — 시트 AQ1 비밀번호)
+export default function AuthGate({ onSuccess, onCancel }) {
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
   const [shake, setShake] = useState(false);
@@ -50,7 +51,7 @@ export default function NewsGate({ onSuccess, onCancel }) {
       });
       const data = await res.json();
       if (data.ok) {
-        setNewsAuthed();
+        setAuthed();
         onSuccess();
         return;
       }
@@ -66,8 +67,8 @@ export default function NewsGate({ onSuccess, onCancel }) {
     <div className="news-gate">
       <form className={`news-gate-card ${shake ? 'shake' : ''}`} onSubmit={submit}>
         <div className="news-gate-icon">🔒</div>
-        <h2 className="news-gate-title">뉴스</h2>
-        <p className="news-gate-desc">뉴스 페이지에 접근하려면 비밀번호를 입력하세요.</p>
+        <h2 className="news-gate-title">TQQQ</h2>
+        <p className="news-gate-desc">TQQQ 페이지에 접근하려면 비밀번호를 입력하세요.</p>
         <input
           ref={inputRef}
           type="password"

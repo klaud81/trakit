@@ -73,6 +73,7 @@ cd backend && python -m pytest test/ -v
 - Discord 명령어: `/help`, `/price`, `/quote symbol:`, `/signal [offset]`, `/portfolio [offset]`, `/goal [offset]`, `/trade` (매수/매도 tier 테이블, 체결가 ✓), `/watch`, `/rate`, `/refresh`. 모두 서버 시작 시 자동 등록 (`register_slash_commands`), 강제 재등록은 `POST /api/discord/register`
 - 라우팅: `window.location.hash` 기반 (`#tqqq` / `#news`). `hashchange` 이벤트로 App.jsx의 `route` 상태와 Sidebar의 active 상태 동기화
 - 뉴스 라우트(`#news`)에서는 Header / 후원하기 카드 숨김, 방문자 통계는 모든 라우트에 표시
+- 비밀번호 게이트: **`#tqqq` 탭만** `AuthGate` (sessionStorage 1시간, 검증 `POST /api/news/auth` = 시트 AQ1). 미인증 시 Header·카드·후원·AdSense 모두 숨김, 취소 → `#news`. `#news` 는 공개
 - NewsPanel: 주제 탭(TOPIC_TABS, 백엔드 `NEWS_TOPICS` 키와 동일) → `/api/news?topic=` refetch. 검색창은 클라이언트측 제목 필터
 - 뉴스 행 클릭 → 원문 기사 새 탭 (RSS 는 본문 미제공이라 상세 모달 없음)
 

@@ -10,7 +10,7 @@ function hashToKey() {
   return MENU.some((m) => m.key === h) ? h : 'tqqq';
 }
 
-export default function Sidebar({ newsAuthed, onNewsLogout }) {
+export default function Sidebar({ authed, onLogout }) {
   const [collapsed, setCollapsed] = useState(true);
   const [active, setActive] = useState(hashToKey());
 
@@ -46,15 +46,15 @@ export default function Sidebar({ newsAuthed, onNewsLogout }) {
         ))}
       </nav>
       <div className="sidebar-auth">
-        {newsAuthed ? (
+        {authed ? (
           <>
-            <div className="sidebar-auth-status" title="뉴스 로그인 성공 (1시간 유지)">
+            <div className="sidebar-auth-status" title="TQQQ 로그인 성공 (1시간 유지)">
               <span className="sidebar-auth-dot" />
               <span className="sidebar-auth-label">로그인 성공</span>
             </div>
             <button
               className="sidebar-logout-btn"
-              onClick={onNewsLogout}
+              onClick={onLogout}
               title="로그아웃"
             >
               <span className="sidebar-icon">⎋</span>
@@ -63,9 +63,9 @@ export default function Sidebar({ newsAuthed, onNewsLogout }) {
           </>
         ) : (
           <a
-            href="#news"
+            href="#tqqq"
             className="sidebar-login-btn"
-            title="뉴스 로그인"
+            title="TQQQ 로그인"
           >
             <span className="sidebar-icon">🔑</span>
             <span className="sidebar-label">로그인</span>
