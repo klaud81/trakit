@@ -1,5 +1,6 @@
 services:
   backend:
+    image: claudkim/trakit-backend:${TRAKIT_TAG:-latest}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -17,12 +18,14 @@ services:
       - path: ./backend/.env
         required: false
     environment:
+      - TZ=Asia/Seoul
       - TRAKIT_DATA_DIR=/data
       - TRAKIT_HOST=0.0.0.0
       - TRAKIT_PORT=8000
     restart: unless-stopped
 
   frontend:
+    image: claudkim/trakit-frontend:${TRAKIT_TAG:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
