@@ -35,6 +35,7 @@
 ### 2. Docker Compose (로컬/서버)
 
 ```bash
+scripts/deploy.sh                     # 운영: 로컬 빌드 → Docker Hub 푸시 → 서버 pull 후 실행
 docker compose up --build -d          # 빌드 + 실행
 docker compose build --no-cache       # 캐시 없이 재빌드
 docker compose logs -f                # 로그 확인

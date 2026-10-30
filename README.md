@@ -31,7 +31,16 @@ trakit/
 # API 문서: http://localhost:8000/docs
 ```
 
-### Docker 배포
+### 운영 배포
+
+```bash
+scripts/deploy.sh          # 현재 HEAD를 빌드해 Docker Hub에 올리고, 서버는 받아서 실행
+scripts/deploy.sh <tag>    # 이전 태그로 되돌리기
+```
+
+이미지는 `claudkim/trakit-backend`, `claudkim/trakit-frontend`(공개 저장소)로 올라간다. 비밀값은 이미지에 넣지 않고 `backend/.env`로 실행 시 주입한다.
+
+### Docker 로컬 실행
 
 ```bash
 docker compose up --build -d
