@@ -2,11 +2,11 @@
 # 이미지를 로컬에서 빌드해 Docker Hub에 올리고, 서버는 받아서 실행만 한다.
 #   scripts/deploy.sh            현재 HEAD를 빌드·배포
 #   scripts/deploy.sh <tag>      이미 올린 태그로 되돌리기 (빌드 없음)
-# 필요: 로컬·서버의 docker login, 서버 계정의 비밀번호 없는 sudo.
+# 필요: 로컬·서버의 docker login. 서버에서 sudo는 쓰지 않는다.
 set -euo pipefail
 
 SERVER="${TRAKIT_SERVER:-claudkim@49.50.139.64}"
-REMOTE_DIR="${TRAKIT_REMOTE_DIR:-/root/git/trakit}"
+REMOTE_DIR="${TRAKIT_REMOTE_DIR:-/srv/trakit}"
 REPO="${TRAKIT_IMAGE_REPO:-claudkim/trakit}"
 PLATFORM="${TRAKIT_PLATFORM:-linux/amd64}"
 
@@ -31,10 +31,9 @@ fi
 ssh -o BatchMode=yes "$SERVER" bash -s -- "$REMOTE_DIR" "$TAG" <<'REMOTE'
 set -euo pipefail
 dir="$1"; tag="$2"
-compose() { sudo -n env DOCKER_CONFIG="$HOME/.docker" TRAKIT_TAG="$tag" docker compose --project-directory "$dir" -f "$dir/docker-compose.yml" "$@"; }
+compose() { TRAKIT_TAG="$tag" docker compose --project-directory "$dir" -f "$dir/docker-compose.yml" "$@"; }
 
-# 이 스크립트는 표준 입력으로 실행되므로, sudo가 그 입력을 읽지 못하게 막는다.
-sudo -n git -C "$dir" pull --ff-only --quiet </dev/null
+git -C "$dir" pull --ff-only --quiet </dev/null
 compose pull --quiet backend frontend </dev/null
 compose up -d --no-build backend frontend </dev/null
 # nginx는 시작할 때 upstream IP를 고정하므로, 컨테이너를 새로 만들면 다시 읽어야 한다.
