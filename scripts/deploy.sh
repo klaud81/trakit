@@ -33,7 +33,8 @@ set -euo pipefail
 dir="$1"; tag="$2"
 compose() { sudo -n env DOCKER_CONFIG="$HOME/.docker" TRAKIT_TAG="$tag" docker compose --project-directory "$dir" -f "$dir/docker-compose.yml" "$@"; }
 
-sudo -n git -C "$dir" pull --ff-only --quiet
+# sudo가 표준 입력을 읽으면 이 스크립트의 나머지가 사라지므로 모두 /dev/null을 준다.
+sudo -n git -C "$dir" pull --ff-only --quiet </dev/null
 compose pull --quiet backend frontend </dev/null
 compose up -d --no-build backend frontend </dev/null
 # nginx는 시작할 때 upstream IP를 고정하므로, 컨테이너를 새로 만들면 다시 읽어야 한다.
